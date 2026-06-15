@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2026-06-15
+
+### Changed
+- Bumped `@supabase/supabase-js` from `^2.107.0` to `^2.108.1`.
+- Bumped `@types/node` from `^25.9.2` to `^25.9.3`.
+- Bumped `eslint` from `^10.3.0` to `^10.5.0`.
+- Bumped `eslint-plugin-react-refresh` from `^0.5.2` to `^0.5.3`.
+- Bumped `typescript-eslint` from `^8.59.2` to `^8.61.0`.
+- Bumped `supabase/setup-cli` GitHub Action from `v1` to `v2`.
+
 ## [0.1.6] - 2026-06-14
 
 ### Added
