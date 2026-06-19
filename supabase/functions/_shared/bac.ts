@@ -1,9 +1,54 @@
+/**
+ * Shared constants for BAC calculations and graph parameters.
+ */
+
+// Weight / gender constants
+export const GENDER_CONSTANTS = {
+  male: 0.68,
+  female: 0.55,
+} as const;
+
+export const ETHANOL_DENSITY = 0.789; // g/ml
+
+// Widmark formula coefficients (Watson body water constants)
+const WATSON_COEFF_MALE_TBW = { intercept: 2.447, age: -0.09156, height: 0.1074, weight: 0.3362 };
+const WATSON_COEFF_FEMALE_TBW = { intercept: -2.097, height: 0.1069, weight: 0.2466 };
+
+// Sanity bounds for Widmark r factor
+const R_MIN_MALE = 0.5;
+const R_MAX_MALE = 0.9;
+const R_MIN_FEMALE = 0.4;
+const R_MAX_FEMALE = 0.8;
+
+// Time constants (milliseconds)
+export const GRAPH_INTERVAL_MS = 30 * 60_000;          // 30-minute graph step
+export const PEAK_BAC_SAMPLE_MS = 15 * 60_000;          // 15-minute peak BAC sampling
+export const SESSION_GAP_MS = 12 * 3_600_000;           // 12-hour session gap threshold
+export const GRAPH_PRE_FIRST_DRINK_MS = 30 * 60_000;    // 30 mins before first drink
+export const GRAPH_POST_SOBER_MS = 60 * 60_000;         // 1 hour after sober
+export const GRAPH_NOW_BUFFER_MS = 30 * 60_000;         // 30-min buffer after now for dynamic graph
+export const GRAPH_DYNAMICTHRESHOLD_MS = 4 * 3_600_000; // 4-hour window for extending graph end
+
+// Drink & UI limits
+export const DEFAULT_DRINK_LIMIT = 50;                  // max drinks returned by API
+export const PRESET_NAME_MAX_LEN = 100;                 // preset name character limit
+export const QUICK_DRINK_MIN = 350;                     // minimum ml for "quick drink" suggestion
+export const QUICK_DRINK_DEFAULT_ABV = 5.0;             // default ABV percentage for quick drinks
+
+// Profile defaults
+export const DEFAULT_METABOLISM_RATE = 0.015;           // % BAC reduction per hour (average)
+export const DEFAULT_DISPLAY_UNIT = '%' as const;        // default display unit
+
+// Date / time formatting
+const MS_PER_HOUR = 3_600_000;
+
 export interface Drink {
   id: string;
   timestamp: number; // ms
   volume: number; // ml
   abv: number; // percentage (e.g. 5.0)
   name?: string;
+  calories?: number; // calories in kcal
 }
 
 export interface Profile {
@@ -13,34 +58,63 @@ export interface Profile {
   displayUnit: '%' | '‰';
   height: number; // cm
   age: number; // years
+  quickDrink?: {
+    name: string;
+    volume: number;
+    abv: number;
+    calories?: number;
+  };
 }
 
-export const GENDER_CONSTANTS = {
-  male: 0.68,
-  female: 0.55,
-};
-
-export const ETHANOL_DENSITY = 0.789; // g/ml
-
 /**
- * Calculates the Widmark r factor using Watson formula if possible.
- * Fallback to standard averages if height/age are invalid.
+ * Estimates the calories of a drink (in kcal) based on its volume and ABV.
+ * Uses a heuristic:
+ * - Spirits (ABV >= 35%): Alcohol calories only (7 kcal/g)
+ * - Wine (10% <= ABV < 35%): Alcohol calories * 1.2 (for residual sugar)
+ * - Beer (ABV < 10%): Alcohol calories * 1.5 (for residual carbs)
  */
+export function estimateCalories(volume: number, abv: number): number {
+  const alcoholGrams = volume * (abv / 100) * ETHANOL_DENSITY;
+  const alcoholCalories = alcoholGrams * 7;
+  
+  if (abv >= 35) {
+    return Math.round(alcoholCalories);
+  } else if (abv >= 10) {
+    return Math.round(alcoholCalories * 1.2);
+  } else {
+    return Math.round(alcoholCalories * 1.5);
+  }
+}
+
+export interface Session {
+  id: string;
+  drinks: Drink[];
+  startTime: number;
+  endTime: number;
+  totalAlcoholGrams: number;
+  peakBAC: number;
+}
+
 export function calculateWidmarkR(profile: Profile): number {
   const { weight, height, age, gender } = profile;
 
   if (gender === 'male') {
     // Watson Formula (Male)
-    const tbw = 2.447 - (0.09156 * age) + (0.1074 * height) + (0.3362 * weight);
+    const tbw = WATSON_COEFF_MALE_TBW.intercept + 
+                (WATSON_COEFF_MALE_TBW.age * age) + 
+                (WATSON_COEFF_MALE_TBW.height * height) + 
+                (WATSON_COEFF_MALE_TBW.weight * weight);
     const r = tbw / (weight * 0.8);
     // Sanity check: r for men is usually between 0.60 and 0.80
-    return Math.min(Math.max(r, 0.5), 0.9);
+    return Math.min(Math.max(r, R_MIN_MALE), R_MAX_MALE);
   } else {
     // Watson Formula (Female)
-    const tbw = -2.097 + (0.1069 * height) + (0.2466 * weight);
+    const tbw = WATSON_COEFF_FEMALE_TBW.intercept + 
+                (WATSON_COEFF_FEMALE_TBW.height * height) + 
+                (WATSON_COEFF_FEMALE_TBW.weight * weight);
     const r = tbw / (weight * 0.8);
     // Sanity check: r for women is usually between 0.45 and 0.70
-    return Math.min(Math.max(r, 0.4), 0.8);
+    return Math.min(Math.max(r, R_MIN_FEMALE), R_MAX_FEMALE);
   }
 }
 
@@ -109,15 +183,27 @@ export function generateBACGraphData(drinks: Drink[], profile: Profile, now: num
 
   const sortedDrinks = [...drinks].sort((a, b) => a.timestamp - b.timestamp);
   const startTime = sortedDrinks[0].timestamp;
-  const timeToZero = calculateTimeToZero(drinks, profile, now);
-  const endTime = now + (timeToZero * 3600000);
+  
+  const lastDrinkTime = sortedDrinks[sortedDrinks.length - 1].timestamp;
+  const timeToZeroFromLast = calculateTimeToZero(drinks, profile, lastDrinkTime);
+  let endTime = lastDrinkTime + (timeToZeroFromLast * MS_PER_HOUR);
+
+  const timeToZeroFromNow = calculateTimeToZero(drinks, profile, now);
+  if (now + (timeToZeroFromNow * MS_PER_HOUR) > endTime) {
+    endTime = now + (timeToZeroFromNow * MS_PER_HOUR);
+  }
 
   // Buffer before and after
-  const graphStart = startTime - (30 * 60000); // 30 mins before first drink
-  const graphEnd = endTime + (60 * 60000); // 1 hour after sober
+  const graphStart = startTime - GRAPH_PRE_FIRST_DRINK_MS;
+  let graphEnd = endTime + GRAPH_POST_SOBER_MS;
 
-  const data = [];
-  const step = 30 * 60000; // 30 minute intervals
+  // Only extend to 'now' if 'now' is within 4 hours of the graph end
+  if (now > startTime && now < graphEnd + GRAPH_DYNAMICTHRESHOLD_MS) {
+    graphEnd = Math.max(graphEnd, now + GRAPH_NOW_BUFFER_MS);
+  }
+
+  const data: { time: number; label: string; bac: number }[] = [];
+  const step = GRAPH_INTERVAL_MS; // 30 minute intervals
 
   for (let t = graphStart; t <= graphEnd; t += step) {
     const bac = calculateBAC(drinks, profile, t);
@@ -127,8 +213,8 @@ export function generateBACGraphData(drinks: Drink[], profile: Profile, now: num
       bac: parseFloat(bac.toFixed(4))
     });
     
-    // Ensure we include 'now' specifically
-    if (t < now && t + step > now) {
+    // Ensure we include 'now' specifically if it's within the graph bounds
+    if (t < now && t + step > now && now <= graphEnd) {
       const currentBac = calculateBAC(drinks, profile, now);
       data.push({
         time: now,
@@ -139,15 +225,6 @@ export function generateBACGraphData(drinks: Drink[], profile: Profile, now: num
   }
 
   return data;
-}
-
-export interface Session {
-  id: string;
-  drinks: Drink[];
-  startTime: number;
-  endTime: number;
-  totalAlcoholGrams: number;
-  peakBAC: number;
 }
 
 /**
@@ -165,7 +242,7 @@ export function groupIntoSessions(drinks: Drink[], profile: Profile): Session[] 
     const currentDrink = sortedDrinks[i];
     const gap = currentDrink.timestamp - prevDrink.timestamp;
 
-    if (gap > 12 * 3600000) {
+    if (gap > SESSION_GAP_MS) {
       // Gap > 12 hours, start new session
       sessions.push(createSessionObject(currentSessionDrinks, profile));
       currentSessionDrinks = [currentDrink];
@@ -187,10 +264,10 @@ function createSessionObject(drinks: Drink[], profile: Profile): Session {
   let peakBAC = 0;
   const startTime = drinks[0].timestamp;
   const lastDrinkTime = drinks[drinks.length - 1].timestamp;
-  const endTime = lastDrinkTime + (calculateTimeToZero(drinks, profile, lastDrinkTime) * 3600000);
+  const endTime = lastDrinkTime + (calculateTimeToZero(drinks, profile, lastDrinkTime) * MS_PER_HOUR);
 
   // Sample BAC every 15 mins to find peak
-  for (let t = startTime; t <= endTime; t += 15 * 60000) {
+  for (let t = startTime; t <= endTime; t += PEAK_BAC_SAMPLE_MS) {
     const bac = calculateBAC(drinks, profile, t);
     if (bac > peakBAC) peakBAC = bac;
   }

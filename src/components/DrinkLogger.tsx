@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { Drink } from '../utils/bac';
+import { estimateCalories } from '../utils/bac';
 
 interface DrinkLoggerProps {
   isOpen: boolean;
@@ -11,18 +12,28 @@ interface DrinkLoggerProps {
 const DrinkLogger: React.FC<DrinkLoggerProps> = ({ isOpen, onClose, editDrink }) => {
   const { presets, addDrink, addPreset, updateDrink } = useAppContext();
   const [isCustom, setIsCustom] = useState(false);
-  const [customDrink, setCustomDrink] = useState({ name: '', volume: 330, abv: 5 });
+  const [customDrink, setCustomDrink] = useState<{ name: string; volume: number; abv: number; calories: number | '' }>({
+    name: '',
+    volume: 330,
+    abv: 5,
+    calories: ''
+  });
   const [saveAsPreset, setSaveAsPreset] = useState(false);
   const [timestamp, setTimestamp] = useState(() => Date.now());
 
   useEffect(() => {
     if (editDrink) {
       setIsCustom(true);
-      setCustomDrink({ name: editDrink.name || '', volume: editDrink.volume, abv: editDrink.abv });
+      setCustomDrink({ 
+        name: editDrink.name || '', 
+        volume: editDrink.volume, 
+        abv: editDrink.abv,
+        calories: editDrink.calories !== undefined ? editDrink.calories : ''
+      });
       setTimestamp(editDrink.timestamp);
     } else {
       setIsCustom(false);
-      setCustomDrink({ name: '', volume: 330, abv: 5 });
+      setCustomDrink({ name: '', volume: 330, abv: 5, calories: '' });
       setTimestamp(Date.now());
     }
   }, [editDrink, isOpen]);
@@ -46,14 +57,31 @@ const DrinkLogger: React.FC<DrinkLoggerProps> = ({ isOpen, onClose, editDrink })
     onClose();
   };
 
+  const handleCustomizePreset = (preset: Omit<Drink, 'id' | 'timestamp'>) => {
+    setIsCustom(true);
+    setCustomDrink({
+      name: preset.name || '',
+      volume: preset.volume,
+      abv: preset.abv,
+      calories: preset.calories !== undefined ? preset.calories : ''
+    });
+  };
+
   const handleAddCustom = (e: React.FormEvent) => {
     e.preventDefault();
+    const parsedCalories = customDrink.calories !== '' ? Number(customDrink.calories) : undefined;
+    const finalDrink = {
+      name: customDrink.name,
+      volume: customDrink.volume,
+      abv: customDrink.abv,
+      calories: parsedCalories
+    };
     if (editDrink) {
-      updateDrink(editDrink.id, { ...customDrink, timestamp });
+      updateDrink(editDrink.id, { ...finalDrink, timestamp });
     } else {
-      addDrink({ ...customDrink, timestamp });
+      addDrink({ ...finalDrink, timestamp });
       if (saveAsPreset) {
-        addPreset(customDrink);
+        addPreset(finalDrink);
       }
     }
     setIsCustom(false);
@@ -84,20 +112,31 @@ const DrinkLogger: React.FC<DrinkLoggerProps> = ({ isOpen, onClose, editDrink })
         {!isCustom ? (
           <div className="presets-grid">
             {presets.map((p, i) => (
-              <button key={i} className="preset-btn" onClick={() => handleAddPreset(p)}>
-                <strong>{p.name}</strong>
-                <span>{p.volume}ml • {p.abv}%</span>
-              </button>
+              <div key={i} className="preset-row">
+                <button type="button" className="preset-btn" onClick={() => handleAddPreset(p)}>
+                  <strong>{p.name}</strong>
+                  <span>{p.volume}ml • {p.abv}%{p.calories ? ` • ${p.calories} kcal` : ''}</span>
+                </button>
+                <button 
+                  type="button" 
+                  className="preset-edit-btn" 
+                  onClick={() => handleCustomizePreset(p)}
+                  title="Customize before logging"
+                >
+                  ✎
+                </button>
+              </div>
             ))}
-            <button className="preset-btn custom-toggle" onClick={() => setIsCustom(true)}>
+            <button type="button" className="preset-btn-standalone" onClick={() => setIsCustom(true)}>
               Custom...
             </button>
           </div>
         ) : (
           <form onSubmit={handleAddCustom} className="custom-form">
             <div className="form-group">
-              <label>Name</label>
+              <label htmlFor="custom-drink-name">Name</label>
               <input 
+                id="custom-drink-name"
                 type="text" 
                 value={customDrink.name} 
                 onChange={e => setCustomDrink({...customDrink, name: e.target.value})} 
@@ -106,8 +145,9 @@ const DrinkLogger: React.FC<DrinkLoggerProps> = ({ isOpen, onClose, editDrink })
               />
             </div>
             <div className="form-group">
-              <label>Volume (ml)</label>
+              <label htmlFor="custom-drink-volume">Volume (ml)</label>
               <input 
+                id="custom-drink-volume"
                 type="number" 
                 value={customDrink.volume} 
                 onChange={e => setCustomDrink({...customDrink, volume: Number(e.target.value)})} 
@@ -115,8 +155,9 @@ const DrinkLogger: React.FC<DrinkLoggerProps> = ({ isOpen, onClose, editDrink })
               />
             </div>
             <div className="form-group">
-              <label>ABV (%)</label>
+              <label htmlFor="custom-drink-abv">ABV (%)</label>
               <input 
+                id="custom-drink-abv"
                 type="number" 
                 step="0.1"
                 value={customDrink.abv} 
@@ -124,9 +165,23 @@ const DrinkLogger: React.FC<DrinkLoggerProps> = ({ isOpen, onClose, editDrink })
                 required
               />
             </div>
+            <div className="form-group">
+              <label htmlFor="custom-drink-calories">Calories (kcal)</label>
+              <input 
+                id="custom-drink-calories"
+                type="number" 
+                value={customDrink.calories} 
+                onChange={e => {
+                  const val = e.target.value;
+                  setCustomDrink({ ...customDrink, calories: val === '' ? '' : Number(val) });
+                }} 
+                placeholder={`e.g. ${estimateCalories(customDrink.volume, customDrink.abv)} (estimated)`}
+              />
+            </div>
             <div className="form-group checkbox-group">
-              <label className="checkbox-label">
+              <label className="checkbox-label" htmlFor="save-preset-checkbox">
                 <input 
+                  id="save-preset-checkbox"
                   type="checkbox" 
                   checked={saveAsPreset} 
                   onChange={e => setSaveAsPreset(e.target.checked)} 
@@ -147,115 +202,6 @@ const DrinkLogger: React.FC<DrinkLoggerProps> = ({ isOpen, onClose, editDrink })
         
         {!editDrink && <button className="close-btn" onClick={onClose}>Close</button>}
       </div>
-
-      <style>{`
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0,0,0,0.8);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          padding: var(--spacing-md);
-        }
-        .modal-content {
-          width: 100%;
-          max-width: 400px;
-          position: relative;
-        }
-        .time-selector {
-          margin-top: var(--spacing-md);
-          display: flex;
-          flex-direction: column;
-          gap: var(--spacing-xs);
-        }
-        .time-selector label {
-          font-size: 0.8rem;
-          opacity: 0.8;
-        }
-        .quick-offsets {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: var(--spacing-xs);
-        }
-        .quick-offsets button {
-          padding: 4px;
-          font-size: 0.8rem;
-          background: var(--surface);
-          border: 1px solid rgba(255,255,255,0.1);
-        }
-        .time-selector input {
-          width: 100%;
-          padding: 8px;
-          background: var(--background);
-          border: 1px solid rgba(255,255,255,0.2);
-          color: var(--on-background);
-          border-radius: 4px;
-        }
-        .presets-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: var(--spacing-sm);
-          margin: var(--spacing-md) 0;
-        }
-        .preset-btn {
-          display: flex;
-          flex-direction: column;
-          background: var(--background);
-          color: var(--on-surface);
-          border: 1px solid rgba(255,255,255,0.1);
-          padding: var(--spacing-md);
-        }
-        .preset-btn strong { font-size: 1rem; }
-        .preset-btn span { font-size: 0.8rem; opacity: 0.7; }
-        .custom-toggle {
-          background: var(--surface);
-          border: 1px dashed var(--primary);
-          color: var(--primary);
-        }
-        .custom-form {
-          display: flex;
-          flex-direction: column;
-          gap: var(--spacing-md);
-        }
-        .form-group label {
-          display: block;
-          font-size: 0.8rem;
-          margin-bottom: 4px;
-          opacity: 0.8;
-        }
-        .checkbox-group {
-          margin-bottom: var(--spacing-sm);
-        }
-        .checkbox-label {
-          display: flex !important;
-          flex-direction: row !important;
-          align-items: center;
-          gap: 8px;
-          cursor: pointer;
-          opacity: 1 !important;
-        }
-        .checkbox-label input {
-          width: auto !important;
-          margin: 0;
-        }
-        .form-actions {
-          display: flex;
-          gap: var(--spacing-md);
-        }
-        .form-actions button { flex: 1; }
-        .primary-btn { background: var(--primary); color: var(--on-primary); }
-        .close-btn {
-          width: 100%;
-          margin-top: var(--spacing-md);
-          background: transparent;
-          color: var(--error);
-        }
-      `}</style>
     </div>
   );
 };

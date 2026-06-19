@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { calculateBAC, calculateTimeToZero, formatBAC, groupIntoSessions } from '../utils/bac';
+import { calculateBAC, calculateTimeToZero, formatBAC, groupIntoSessions, estimateCalories } from '../utils/bac';
 import BACGraph from './BACGraph';
 
 const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
@@ -49,6 +49,9 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
   const activeDrinks = isActive && currentSession ? currentSession.drinks : [];
   const totalAlcohol = isActive && currentSession ? currentSession.totalAlcoholGrams : 0;
   const firstDrinkTime = isActive && currentSession ? currentSession.startTime : now;
+  const totalCalories = activeDrinks.reduce((sum, d) => {
+    return sum + (d.calories !== undefined ? d.calories : estimateCalories(d.volume, d.abv));
+  }, 0);
 
   // Safety rule: 1 standard drink (10g) per hour from the first drink
   const safetySoberTime = firstDrinkTime + (totalAlcohol / 10) * 3600000;
@@ -92,8 +95,13 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
           </div>
 
           <div className="card info-card" style={{ marginTop: 'var(--spacing-md)' }}>
-            <span className="label">Total Alcohol Consumed</span>
-            <h3>{totalAlcohol.toFixed(1)}g</h3>
+            <span className="label">Total Alcohol & Calories</span>
+            <h3>
+              {totalAlcohol.toFixed(1)}g
+              <small style={{ fontSize: '1rem', opacity: 0.7, fontWeight: 'normal', display: 'block', marginTop: '4px' }}>
+                Est. {totalCalories} kcal
+              </small>
+            </h3>
             <p className="help-text" style={{ fontSize: '0.9rem', marginTop: '4px', opacity: 0.8 }}>
               You should be sober by <strong>{new Date(standardSoberTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
             </p>
@@ -125,81 +133,14 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
               timestamp: Date.now(),
               volume: profile.quickDrink!.volume,
               abv: profile.quickDrink!.abv,
-              name: profile.quickDrink!.name
+              name: profile.quickDrink!.name,
+              calories: profile.quickDrink!.calories
             });
           }}>
             ⚡ Quick {profile.quickDrink.name}
           </button>
         )}
       </div>
-
-      <style>{`
-        .dashboard {
-          padding-bottom: 80px;
-        }
-        .profile-summary {
-          display: flex;
-          gap: var(--spacing-md);
-          justify-content: center;
-          margin-bottom: var(--spacing-md);
-          font-size: 0.8rem;
-          opacity: 0.6;
-          text-transform: capitalize;
-        }
-        .bac-display {
-          text-align: center;
-          padding: var(--spacing-xl) var(--spacing-md);
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-        }
-        .bac-value {
-          font-size: 4rem;
-          margin: var(--spacing-sm) 0;
-        }
-        .label {
-          text-transform: uppercase;
-          font-size: 0.75rem;
-          letter-spacing: 1px;
-          opacity: 0.7;
-        }
-        .status-badge {
-          padding: 4px 12px;
-          border-radius: 20px;
-          font-weight: bold;
-          font-size: 0.8rem;
-          color: black;
-        }
-        .info-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: var(--spacing-md);
-        }
-        .info-card {
-          text-align: center;
-        }
-        .action-buttons {
-          display: flex;
-          gap: var(--spacing-md);
-          margin-top: var(--spacing-lg);
-        }
-        .add-drink-btn {
-          flex: 1;
-          padding: var(--spacing-lg);
-          font-size: 1.2rem;
-          background: var(--primary);
-          color: var(--on-primary);
-          box-shadow: 0 4px 15px rgba(0, 59, 111, 0.4);
-        }
-        .quick-drink-btn {
-          flex: 1;
-          padding: var(--spacing-lg);
-          font-size: 1.2rem;
-          background: var(--secondary, #4CAF50);
-          color: white;
-          box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
-        }
-      `}</style>
     </div>
   );
 };

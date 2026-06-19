@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.107.0"
-import { calculateBAC, calculateTimeToZero, Profile, Drink } from "../_shared/bac.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.1"
+import { calculateBAC, calculateTimeToZero, estimateCalories, Profile, Drink } from "../_shared/bac.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -88,7 +88,8 @@ serve(async (req) => {
           timestamp: timestamp ? new Date(timestamp).getTime() : now,
           volume: Number(volume),
           abv: Number(abv),
-          name: name || 'API Drink'
+          name: name || 'API Drink',
+          calories: body.calories !== undefined ? Number(body.calories) : undefined
         };
 
         drinks.push(newDrink);
@@ -142,6 +143,7 @@ serve(async (req) => {
       unit: profile.displayUnit || '%',
       drinks: parsedDrinks.slice(0, limit).map(d => ({
         ...d,
+        calories: d.calories !== undefined ? d.calories : estimateCalories(d.volume, d.abv),
         timestamp_iso: new Date(d.timestamp).toISOString()
       }))
     };
