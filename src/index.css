@@ -82,6 +82,41 @@ input, select {
   width: 100%;
 }
 
+.card {
+  background: var(--surface);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  box-shadow: var(--shadow);
+}
+
+.safety-card {
+  margin-top: var(--spacing-sm);
+  background: rgba(255, 152, 0, 0.1) !important;
+  border: 1px solid rgba(255, 152, 0, 0.2);
+  border-left: 4px solid #ff9800 !important;
+  text-align: left;
+}
+
+.safety-label {
+  color: #ff9800 !important;
+  font-weight: bold;
+}
+
+.safety-text {
+  font-size: 0.9rem;
+  margin: 6px 0 0 0;
+  color: #ff9800;
+}
+
+.safety-help {
+  font-size: 0.75rem;
+  margin-top: 6px;
+  opacity: 0.85;
+  color: #dddddd;
+  line-height: 1.4;
+}
+
 .error-box {
   background: rgba(244, 67, 54, 0.1);
   border: 1px solid rgba(244, 67, 54, 0.3);

@@ -108,12 +108,12 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
           </div>
 
           {isSafetyBufferRelevant && (
-            <div className="card safety-card" style={{ marginTop: 'var(--spacing-sm)', background: 'rgba(255, 152, 0, 0.15)', borderColor: 'rgba(255, 152, 0, 0.4)', borderLeft: '4px solid #ff9800', textAlign: 'left' }}>
-              <span className="label" style={{ color: '#ff9800', fontWeight: 'bold' }}>⚠️ Safety Buffer (1 Drink/Hr Rule)</span>
-              <p style={{ fontSize: '0.9rem', margin: '6px 0 0 0', color: '#ff9800' }}>
+            <div className="card safety-card">
+              <span className="label safety-label">⚠️ Safety Buffer (1 Drink/Hr Rule)</span>
+              <p className="safety-text">
                 Govt. guidelines suggest you might not be safe until <strong>{new Date(safetySoberTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
               </p>
-              <p className="help-text" style={{ fontSize: '0.75rem', marginTop: '6px', opacity: 0.8, color: '#eee' }}>
+              <p className="help-text safety-help">
                 The "1 standard drink per hour" rule is a safer, more conservative estimate for larger body weights.
               </p>
             </div>
