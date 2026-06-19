@@ -19,9 +19,22 @@ interface AppContextType {
   user: User | null;
   lastSynced: string | null;
   isSyncing: boolean;
+  pushError: string | null;
   signOut: () => Promise<void>;
   pullFromCloud: () => Promise<void>;
   storageWarning: string | null;
+  toasts: ToastEntry[];
+  showToast: (message: string, type?: ToastType) => void;
+}
+
+/** Types of toast notifications */
+export type ToastType = 'success' | 'error' | 'info';
+
+/** Single toast notification in the queue */
+interface ToastEntry {
+  id: number;
+  message: string;
+  type: ToastType;
 }
 
 const DEFAULT_PROFILE: Profile = {
@@ -34,10 +47,10 @@ const DEFAULT_PROFILE: Profile = {
 };
 
 const DEFAULT_PRESETS: Omit<Drink, 'id' | 'timestamp'>[] = [
-  { name: 'Beer', volume: 330, abv: 5 },
-  { name: 'Large Beer', volume: 500, abv: 5 },
-  { name: 'Wine', volume: 150, abv: 12 },
-  { name: 'Spirit', volume: 40, abv: 40 },
+  { name: 'Beer', volume: 330, abv: 5, calories: 137 },
+  { name: 'Large Beer', volume: 500, abv: 5, calories: 207 },
+  { name: 'Wine', volume: 150, abv: 12, calories: 119 },
+  { name: 'Spirit', volume: 40, abv: 40, calories: 88 },
 ];
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -55,14 +68,37 @@ function safeSetItem(key: string, value: string): void {
   }
 }
 
+// Migration helper from alcoclone_* to sipwise_* localStorage keys
+const migrateLocalStorageKeys = () => {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  const keys = ['profile', 'drinks', 'presets', 'last_synced', 'repaired_365'];
+  keys.forEach(k => {
+    const oldKey = `alcoclone_${k}`;
+    const newKey = `sipwise_${k}`;
+    try {
+      const value = localStorage.getItem(oldKey);
+      if (value && !localStorage.getItem(newKey)) {
+        localStorage.setItem(newKey, value);
+        localStorage.removeItem(oldKey);
+      }
+    } catch (e) {
+      console.warn('LocalStorage migration failed:', e);
+    }
+  });
+};
+
+migrateLocalStorageKeys();
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem('alcoclone_last_synced'));
+  const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem('sipwise_last_synced'));
   const [isSyncing, setIsSyncing] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastEntry[]>([]);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
 
   const [profile, setProfileState] = useState<Profile>(() => {
-    const saved = localStorage.getItem('alcoclone_profile');
+    const saved = localStorage.getItem('sipwise_profile');
     try {
       return saved ? JSON.parse(saved) : DEFAULT_PROFILE;
     } catch {
@@ -71,7 +107,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [drinks, setDrinks] = useState<Drink[]>(() => {
-    const saved = localStorage.getItem('alcoclone_drinks');
+    const saved = localStorage.getItem('sipwise_drinks');
     try {
       return saved ? JSON.parse(saved) : [];
     } catch {
@@ -80,7 +116,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [presets, setPresets] = useState<Omit<Drink, 'id' | 'timestamp'>[]>(() => {
-    const saved = localStorage.getItem('alcoclone_presets');
+    const saved = localStorage.getItem('sipwise_presets');
     try {
       return saved ? JSON.parse(saved) : DEFAULT_PRESETS;
     } catch {
@@ -89,11 +125,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    safeSetItem('alcoclone_profile', JSON.stringify(profile));
+    safeSetItem('sipwise_profile', JSON.stringify(profile));
   }, [profile]);
 
   useEffect(() => {
-    safeSetItem('alcoclone_drinks', JSON.stringify(drinks));
+    safeSetItem('sipwise_drinks', JSON.stringify(drinks));
     // Warn if drink history is getting large (>500 entries)
     if (drinks.length > 500) {
       setStorageWarning(`You have ${drinks.length} drink entries. Consider exporting and clearing old history to keep the app running smoothly.`);
@@ -103,7 +139,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [drinks]);
 
   useEffect(() => {
-    safeSetItem('alcoclone_presets', JSON.stringify(presets));
+    safeSetItem('sipwise_presets', JSON.stringify(presets));
   }, [presets]);
 
   // Auth Listener
@@ -117,6 +153,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  const showToast = useCallback((message: string, type: ToastType = 'info') => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   }, []);
 
   const pushToCloud = useCallback(async () => {
@@ -136,9 +178,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!error) {
         const now = new Date().toLocaleString();
         setLastSynced(now);
-        safeSetItem('alcoclone_last_synced', now);
+        safeSetItem('sipwise_last_synced', now);
+        setPushError(null);
+      } else {
+        setPushError(error.message || 'Failed to sync. Please try again.');
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setPushError(`Push failed: ${message}. Please try again.`);
       console.error('Push to cloud failed:', err);
     } finally {
       setIsSyncing(false);
@@ -161,7 +208,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (data.presets) setPresets(data.presets);
         const now = new Date().toLocaleString();
         setLastSynced(now);
-        safeSetItem('alcoclone_last_synced', now);
+        safeSetItem('sipwise_last_synced', now);
       }
     } catch (err) {
       console.error('Pull from cloud failed:', err);
@@ -219,7 +266,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // One-time data repair for common errors (like 365ml DBL-Black)
   useEffect(() => {
-    const hasRepaired = localStorage.getItem('alcoclone_repaired_365');
+    const hasRepaired = localStorage.getItem('sipwise_repaired_365');
     if (!hasRepaired && drinks.length > 0) {
       let repaired = false;
       const newDrinks = drinks.map(d => {
@@ -242,7 +289,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setDrinks(newDrinks);
         setPresets(newPresets);
       }
-      localStorage.setItem('alcoclone_repaired_365', 'true');
+      localStorage.setItem('sipwise_repaired_365', 'true');
     }
   }, [drinks, presets]);
 
@@ -261,20 +308,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await supabase.auth.signOut();
     setUser(null);
     setLastSynced(null);
-    localStorage.removeItem('alcoclone_last_synced');
+    localStorage.removeItem('sipwise_last_synced');
     setStorageWarning(null);
   };
 
   return (
-    <AppContext.Provider value={{ 
-      profile, setProfile, 
+    <AppContext.Provider value={{
+      profile, setProfile,
       drinks, addDrink, removeDrink, updateDrink,
       presets, addPreset, removePreset, updatePreset,
       clearHistory,
       importData,
-      user, lastSynced, isSyncing,
+      user, lastSynced, isSyncing, pushError,
       signOut, pullFromCloud,
-      storageWarning,
+      storageWarning, toasts, showToast,
     }}>
       {children}
     </AppContext.Provider>

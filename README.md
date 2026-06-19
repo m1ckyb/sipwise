@@ -10,6 +10,7 @@ SipWise is a Blood Alcohol Content (BAC) calculator and consumption tracker web 
 - **Drink Logger:** Easily log drinks with preset types (Beer, Wine, Spirits).
 - **Quick Drink:** Instantly add your favorite drink from the dashboard.
 - **History Tracking:** View a chronological log of your drinks.
+- **Calorie Tracking:** Tracks calorie intake for each drink with optional manual override or smart heuristic estimations based on drink type (beer, wine, spirit).
 - **BAC Graph:** Visual representation of your BAC over time.
 - **PWA Support:** Installable on mobile and desktop for offline use.
 - **Supabase Integration:** Secure data storage and synchronization.
@@ -28,7 +29,7 @@ SipWise is a Blood Alcohol Content (BAC) calculator and consumption tracker web 
 
 ### Prerequisites
 
-- Node.js (v24 or higher recommended)
+- Node.js (v22 or higher recommended)
 - npm
 - A Supabase account and project
 
@@ -171,4 +172,5 @@ To allow the GitHub Action to build the project, you need to add your Supabase e
 - `npm run dev`: Start development server.
 - `npm run build`: Build for production.
 - `npm run lint`: Run ESLint.
+- `npm test`: Run unit tests using Vitest.
 - `npm run preview`: Preview the production build locally.

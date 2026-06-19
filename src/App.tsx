@@ -6,6 +6,7 @@ import History from './components/History';
 import ProfileSettings from './components/ProfileSettings';
 import DrinkLogger from './components/DrinkLogger';
 import ReloadPrompt from './components/ReloadPrompt';
+import { useAppContext } from './context/AppContext';
 import type { Drink } from './utils/bac';
 
 function App() {
@@ -23,11 +24,22 @@ function App() {
     setEditingDrink(undefined);
   };
 
+  // Destructure toasts from context — must be inside App (the only component with AppProvider parent)
+  const { toasts } = useAppContext();
+
   return (
     <>
       <header className="app-header">
         <h1>SipWise</h1>
       </header>
+
+      <div className="toast-container">
+        {toasts.map(t => (
+          <div key={t.id} className={`toast ${t.type}`}>
+            {t.message}
+          </div>
+        ))}
+      </div>
 
       <main>
         {currentView === 'dashboard' && (
@@ -37,8 +49,8 @@ function App() {
         {currentView === 'profile' && <ProfileSettings />}
       </main>
 
-      <DrinkLogger 
-        isOpen={isLoggerOpen} 
+      <DrinkLogger
+        isOpen={isLoggerOpen}
         onClose={closeLogger}
         editDrink={editingDrink}
       />
@@ -46,23 +58,6 @@ function App() {
       <ReloadPrompt />
 
       <NavBar currentView={currentView} setView={setCurrentView} />
-
-      <style>{`
-        .app-header {
-          padding: var(--spacing-md) 0;
-          text-align: center;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-          margin-bottom: var(--spacing-lg);
-        }
-        .app-header h1 {
-          font-size: 1.5rem;
-          color: var(--primary);
-          margin: 0;
-        }
-        main {
-          flex: 1;
-        }
-      `}</style>
     </>
   );
 }

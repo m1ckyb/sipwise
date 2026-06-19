@@ -1,5 +1,6 @@
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import type { TooltipContentProps } from 'recharts';
 import { generateBACGraphData } from '../utils/bac';
 import type { Drink, Profile } from '../utils/bac';
 
@@ -25,12 +26,12 @@ const BACGraph: React.FC<BACGraphProps> = ({ drinks, profile, now, showNowLine =
     );
   }
 
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
+  const CustomTooltip = ({ active, payload }: Partial<TooltipContentProps<number, string>>) => {
+    if (active && payload && payload.length && payload[0].value !== undefined) {
       return (
         <div className="custom-tooltip">
           <p className="label">{payload[0].payload.label}</p>
-          <p className="bac">{payload[0].value.toFixed(profile.displayUnit === '‰' ? 2 : 3)}{profile.displayUnit} BAC</p>
+          <p className="bac">{Number(payload[0].value).toFixed(profile.displayUnit === '‰' ? 2 : 3)}{profile.displayUnit} BAC</p>
         </div>
       );
     }
@@ -77,39 +78,6 @@ const BACGraph: React.FC<BACGraphProps> = ({ drinks, profile, now, showNowLine =
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      <style>{`
-        .graph-card {
-          margin-top: var(--spacing-md);
-          padding: var(--spacing-md);
-        }
-        .graph-container.minimal {
-          padding: 0;
-          margin-bottom: var(--spacing-md);
-        }
-        .empty-graph {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          height: 200px;
-          opacity: 0.5;
-        }
-        .custom-tooltip {
-          background: #333;
-          border: 1px solid #555;
-          padding: 8px;
-          border-radius: 4px;
-        }
-        .custom-tooltip .label {
-          margin: 0;
-          font-size: 0.7rem;
-          color: #aaa;
-        }
-        .custom-tooltip .bac {
-          margin: 0;
-          font-weight: bold;
-          color: var(--primary);
-        }
-      `}</style>
     </div>
   );
 };
