@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.10] - 2026-06-25
+
+### Fixed
+- Fixed auto-pull on page load overwriting local state with stale cloud data, causing newly added drinks to be lost on refresh. Removed the initial `pullFromCloud()` call on mount; local state now takes precedence and is pushed to cloud via the existing debounced sync. Manual "Sync Now" button in AuthPanel still available for explicit pull.
+
 ## [0.1.9] - 2026-06-20
 
 ### Fixed
