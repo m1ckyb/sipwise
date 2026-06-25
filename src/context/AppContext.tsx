@@ -217,13 +217,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user]);
 
-  // Initial pull on login
-  useEffect(() => {
-    if (user) {
-      pullFromCloud();
-    }
-  }, [user, pullFromCloud]);
-
   // Auto-push on changes
   useEffect(() => {
     if (user) {
