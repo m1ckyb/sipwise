@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.12] - 2026-06-26
+
+### Fixed
+
+- **Auto-sync on login overwrites cloud data on new device**: When logging into a fresh device, the auto-push effect fired on `user` change and pushed empty/default data to the cloud within 2 seconds, destroying existing cloud data from the PC before the user could press "Sync Now". Fixed by pulling from cloud on `SIGNED_IN` event first, and decoupling the auto-push effect from login events — it now only fires when local data actually changes.
+
 ## [0.1.11] - 2026-06-26
 
 ### Fixed

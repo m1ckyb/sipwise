@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { Drink, Profile } from '../utils/bac';
 import { supabase } from '../utils/supabase';
 import type { User } from '@supabase/supabase-js';
@@ -97,6 +97,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [pushError, setPushError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
+  const [pendingSignIn, setPendingSignIn] = useState(false);
 
   const [profile, setProfileState] = useState<Profile>(() => {
     const saved = localStorage.getItem('sipwise_profile');
@@ -149,8 +150,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUser(session?.user ?? null);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
+      if (event === 'SIGNED_IN') {
+        setPendingSignIn(true);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -228,15 +232,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user]);
 
-  // Auto-push on changes
+  // Pull from cloud on fresh login, then push any local changes
   useEffect(() => {
-    if (user) {
-      const timer = setTimeout(() => {
+    if (pendingSignIn && user) {
+      setPendingSignIn(false);
+      pullFromCloud().finally(() => {
         pushToCloud();
-      }, 2000); // Debounce push
-      return () => clearTimeout(timer);
+      });
     }
-  }, [profile, drinks, presets, user, pushToCloud]);
+  }, [pendingSignIn, user, pullFromCloud, pushToCloud]);
+
+  // Auto-push on data changes only, not on user login
+  const pushToCloudRef = useRef(pushToCloud);
+  pushToCloudRef.current = pushToCloud;
+
+  useEffect(() => {
+    if (!user) return;
+    const timer = setTimeout(() => {
+      pushToCloudRef.current();
+    }, 2000);
+    return () => clearTimeout(timer);
+    // Only fire when data actually changes — not when user logs in
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, drinks, presets]);
 
   const setProfile = (newProfile: Profile) => setProfileState(newProfile);
 
