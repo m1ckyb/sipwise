@@ -4,7 +4,7 @@ import { supabase } from '../../utils/supabase';
 
 const AuthPanel: React.FC = () => {
   const { 
-    user, lastSynced, isSyncing, pushError, signOut, pullFromCloud, showToast 
+    user, lastSynced, isSyncing, pushError, signOut, pullFromCloud, pushToCloud, showToast 
   } = useAppContext();
   const [isOpen, setIsOpen] = useState(false);
   const [email, setEmail] = useState('');
@@ -39,10 +39,11 @@ const AuthPanel: React.FC = () => {
 
   const handleSync = async () => {
     try {
+      await pushToCloud();
       await pullFromCloud();
-      showToast('Data synced from cloud successfully!', 'success');
+      showToast('Data synced successfully!', 'success');
     } catch (err: any) {
-      showToast(err.message || 'Failed to sync from cloud.', 'error');
+      showToast(err.message || 'Failed to sync.', 'error');
     }
   };
 

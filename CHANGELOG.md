@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.11] - 2026-06-26
+
+### Fixed
+
+- **Sync not working between devices**: `pullFromCloud` was silently swallowing all errors (never threw, never set `pushError`), so the "Sync Now" button always showed a success toast even when the Supabase query failed. Also, "Sync Now" was pull-only — it now pushes local changes before pulling cloud data (bidirectional sync).
+- Synced `package.json` version to match `VERSION.txt` (0.1.10) so the version displayed at the bottom of the Profile page is correct.
+
 ## [0.1.10] - 2026-06-25
 
 ### Fixed

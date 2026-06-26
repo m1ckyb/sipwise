@@ -22,6 +22,7 @@ interface AppContextType {
   pushError: string | null;
   signOut: () => Promise<void>;
   pullFromCloud: () => Promise<void>;
+  pushToCloud: () => Promise<void>;
   storageWarning: string | null;
   toasts: ToastEntry[];
   showToast: (message: string, type?: ToastType) => void;
@@ -200,18 +201,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .from('user_data')
         .select('*')
         .eq('id', user.id)
-        .maybeSingle(); // Use maybeSingle to handle case where no data exists yet
-      
-      if (data && !error) {
+        .maybeSingle();
+
+      if (error) {
+        setPushError(error.message || 'Failed to pull from cloud.');
+        throw new Error(error.message || 'Failed to pull from cloud.');
+      }
+
+      if (data) {
         if (data.profile) setProfileState(data.profile);
         if (data.drinks) setDrinks(data.drinks);
         if (data.presets) setPresets(data.presets);
-        const now = new Date().toLocaleString();
-        setLastSynced(now);
-        safeSetItem('sipwise_last_synced', now);
       }
+      const now = new Date().toLocaleString();
+      setLastSynced(now);
+      safeSetItem('sipwise_last_synced', now);
+      setPushError(null);
     } catch (err) {
       console.error('Pull from cloud failed:', err);
+      if (err instanceof Error) {
+        setPushError(err.message);
+      }
+      throw err;
     } finally {
       setIsSyncing(false);
     }
@@ -313,7 +324,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clearHistory,
       importData,
       user, lastSynced, isSyncing, pushError,
-      signOut, pullFromCloud,
+      signOut, pullFromCloud, pushToCloud,
       storageWarning, toasts, showToast,
     }}>
       {children}
