@@ -42,6 +42,26 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
     return `${h}h ${m}m`;
   };
 
+  const getNextDrink = (): { volume: number; abv: number; name?: string } | null => {
+    if (profile.quickDrink) {
+      return profile.quickDrink;
+    }
+    if (drinks.length > 0) {
+      const last = drinks[drinks.length - 1];
+      return { volume: last.volume, abv: last.abv, name: last.name };
+    }
+    return null;
+  };
+
+  const nextDrink = getNextDrink();
+  const predictedBAC = nextDrink
+    ? calculateBAC(
+        [...drinks, { id: 'prediction', timestamp: now, volume: nextDrink.volume, abv: nextDrink.abv }],
+        profile,
+        now
+      )
+    : null;
+
   const isActive = currentBAC > 0;
   const sessions = groupIntoSessions(drinks, profile);
   const currentSession = sessions.length > 0 ? sessions[0] : null;
@@ -67,7 +87,17 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
       </div>
 
       <div className="bac-display card" style={{ borderColor: getStatusColor(currentBAC), borderLeft: '4px solid' }}>
-        <span className="label">Current BAC</span>
+        <span className="label">
+          Current BAC
+          {nextDrink && predictedBAC !== null && (
+            <span className="bac-predict">
+              <span className="predict-icon">🛈</span>
+              <span className="predict-tooltip">
+                After 1 more {nextDrink.name || 'drink'}: {formatBAC(predictedBAC, profile.displayUnit)}{profile.displayUnit}
+              </span>
+            </span>
+          )}
+        </span>
         <h1 className="bac-value" style={{ color: getStatusColor(currentBAC) }}>
           {formatBAC(currentBAC, profile.displayUnit)}{profile.displayUnit}
         </h1>
