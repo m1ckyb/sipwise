@@ -4,7 +4,7 @@ import { calculateBAC, calculateTimeToZero, formatBAC, groupIntoSessions, estima
 import BACGraph from './BACGraph';
 
 const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
-  const { drinks, profile, addDrink, pushToCloud, isSyncing, showToast } = useAppContext();
+  const { drinks, profile, addDrink, user, pushToCloud, pullFromCloud, isSyncing, showToast } = useAppContext();
   const [currentBAC, setCurrentBAC] = useState(0);
   const [timeToZero, setTimeToZero] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -84,9 +84,19 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
         <span>⚡ {profile.metabolismRate.toFixed(3)}%/hr</span>
         <button
           className="sync-btn"
-          onClick={() => {
-            pushToCloud();
-            showToast('Syncing data to cloud...', 'info');
+          onClick={async () => {
+            if (!user) {
+              showToast('Sign in on the Profile page to enable cloud sync', 'error');
+              return;
+            }
+            showToast('Syncing data...', 'info');
+            await pushToCloud();
+            try {
+              await pullFromCloud();
+              showToast('Sync complete!', 'success');
+            } catch {
+              showToast('Sync completed (push only, pull failed)', 'info');
+            }
           }}
           disabled={isSyncing}
           title="Sync to cloud"
