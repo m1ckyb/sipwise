@@ -54,13 +54,11 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
   };
 
   const nextDrink = getNextDrink();
-  const predictedBAC = nextDrink
-    ? calculateBAC(
-        [...drinks, { id: 'prediction', timestamp: now, volume: nextDrink.volume, abv: nextDrink.abv }],
-        profile,
-        now
-      )
+  const futureDrinks = nextDrink
+    ? [...drinks, { id: 'prediction', timestamp: now, volume: nextDrink.volume, abv: nextDrink.abv }]
     : null;
+  const predictedBAC = futureDrinks ? calculateBAC(futureDrinks, profile, now) : null;
+  const predictedTimeToZero = futureDrinks ? calculateTimeToZero(futureDrinks, profile, now) : null;
 
   const isActive = currentBAC > 0;
   const sessions = groupIntoSessions(drinks, profile);
@@ -94,6 +92,7 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
               <span className="predict-icon">🛈</span>
               <span className="predict-tooltip">
                 After 1 more {nextDrink.name || 'drink'}: {formatBAC(predictedBAC, profile.displayUnit)}{profile.displayUnit}
+                {predictedTimeToZero !== null && <span className="predict-sober">Sober: {formatHours(predictedTimeToZero)}</span>}
               </span>
             </span>
           )}
