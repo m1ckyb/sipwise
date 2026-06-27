@@ -4,7 +4,7 @@ import { calculateBAC, calculateTimeToZero, formatBAC, groupIntoSessions, estima
 import BACGraph from './BACGraph';
 
 const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
-  const { drinks, profile, addDrink } = useAppContext();
+  const { drinks, profile, addDrink, pushToCloud, isSyncing, showToast } = useAppContext();
   const [currentBAC, setCurrentBAC] = useState(0);
   const [timeToZero, setTimeToZero] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -82,6 +82,17 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
         <span>{profile.gender === 'male' ? '♂️' : '♀️'} {profile.gender}</span>
         <span>⚖️ {profile.weight}kg</span>
         <span>⚡ {profile.metabolismRate.toFixed(3)}%/hr</span>
+        <button
+          className="sync-btn"
+          onClick={() => {
+            pushToCloud();
+            showToast('Syncing data to cloud...', 'info');
+          }}
+          disabled={isSyncing}
+          title="Sync to cloud"
+        >
+          ⟳
+        </button>
       </div>
 
       <div className="bac-display card" style={{ borderColor: getStatusColor(currentBAC), borderLeft: '4px solid' }}>
@@ -92,7 +103,7 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
               <span className="predict-icon">🛈</span>
               <span className="predict-tooltip">
                 After 1 more {nextDrink.name || 'drink'}: {formatBAC(predictedBAC, profile.displayUnit)}{profile.displayUnit}
-                {predictedTimeToZero !== null && <span className="predict-sober">Sober: {formatHours(predictedTimeToZero)}</span>}
+                {predictedTimeToZero !== null && <span className="predict-sober">Sober by {new Date(now + predictedTimeToZero * 3600000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
               </span>
             </span>
           )}
