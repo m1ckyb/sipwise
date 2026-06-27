@@ -369,7 +369,8 @@ input, select {
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 0.8rem;
-  white-space: nowrap;
+  min-width: 180px;
+  text-align: center;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
   border: 1px solid rgba(255,255,255,0.1);
   z-index: 10;
@@ -378,10 +379,17 @@ input, select {
   letter-spacing: normal;
   font-weight: normal;
   pointer-events: none;
+  line-height: 1.5;
 }
 .bac-predict:hover .predict-tooltip {
   visibility: visible;
   opacity: 1;
+}
+.predict-sober {
+  display: block;
+  margin-top: 4px;
+  opacity: 0.8;
+  font-size: 0.75rem;
 }
 .label {
   text-transform: uppercase;
