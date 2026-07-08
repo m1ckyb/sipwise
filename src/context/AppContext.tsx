@@ -110,6 +110,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pushError, setPushError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
   const pendingSyncRef = useRef(false);
+  const initialPullDone = useRef(false);
 
   const [profile, setProfileState] = useState<Profile>(() => {
     const saved = localStorage.getItem('sipwise_profile');
@@ -143,6 +144,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return DEFAULT_PRESETS;
   });
 
+  const profileRef = useRef(profile);
+  const drinksRef = useRef(drinks);
+  const presetsRef = useRef(presets);
+  const skipNextPushRef = useRef(false);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+
+  useEffect(() => {
+    drinksRef.current = drinks;
+  }, [drinks]);
+
+  useEffect(() => {
+    presetsRef.current = presets;
+  }, [presets]);
+
   // Derive storage warning from drinks length (declared after drinks)
   const storageWarning = useMemo(() => {
     if (drinks.length > 500) {
@@ -173,9 +191,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .from('user_data')
         .upsert({
           id: user.id,
-          profile,
-          drinks,
-          presets,
+          profile: profileRef.current,
+          drinks: drinksRef.current,
+          presets: presetsRef.current,
           updated_at: new Date().toISOString(),
         });
       
@@ -194,7 +212,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [user, profile, drinks, presets]);
+  }, [user]);
 
   const pullFromCloud = useCallback(async () => {
     if (!user) return;
@@ -212,9 +230,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       if (data) {
-        if (data.profile) setProfileState(data.profile);
-        if (data.drinks) setDrinks(data.drinks);
-        if (data.presets) setPresets(data.presets);
+        let changed = false;
+        if (data.profile && JSON.stringify(data.profile) !== JSON.stringify(profileRef.current)) {
+          setProfileState(data.profile);
+          changed = true;
+        }
+        if (data.drinks && JSON.stringify(data.drinks) !== JSON.stringify(drinksRef.current)) {
+          setDrinks(data.drinks);
+          changed = true;
+        }
+        if (data.presets && JSON.stringify(data.presets) !== JSON.stringify(presetsRef.current)) {
+          setPresets(data.presets);
+          changed = true;
+        }
+        if (changed) {
+          skipNextPushRef.current = true;
+        }
+      } else {
+        await pushToCloud();
       }
       const now = new Date().toLocaleString();
       setLastSynced(now);
@@ -229,7 +262,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [user]);
+  }, [user, pushToCloud]);
 
   const setProfile = useCallback((newProfile: Profile) => setProfileState(newProfile), []);
   const addDrink = useCallback((drink: Omit<Drink, 'id'>) => {
@@ -292,13 +325,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Pull from cloud on fresh login, then push any local changes
+  // Pull from cloud on fresh login
   useEffect(() => {
     if (pendingSyncRef.current && user) {
       pendingSyncRef.current = false;
-      pullFromCloud().finally(() => pushToCloud());
+      pullFromCloud();
     }
-  }, [user, pullFromCloud, pushToCloud]);
+  }, [user, pullFromCloud]);
+
+  // Pull from cloud on mount — prevents stale localStorage from overwriting cloud data
+  useEffect(() => {
+    if (user && !initialPullDone.current) {
+      initialPullDone.current = true;
+      pullFromCloud();
+    }
+  }, [user, pullFromCloud]);
 
   // Auto-push on data changes only, not on user login
   const pushToCloudRef = useRef(pushToCloud);
@@ -307,7 +348,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !initialPullDone.current) return;
+    if (skipNextPushRef.current) {
+      skipNextPushRef.current = false;
+      return;
+    }
     const timer = setTimeout(() => {
       pushToCloudRef.current();
     }, 2000);

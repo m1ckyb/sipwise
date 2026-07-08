@@ -1,7 +1,2 @@
-### Added
-
-### Changed
-
 ### Fixed
-
-### Removed
+- **Data loss when switching devices**: Fixed a race condition and stale closure in the initial cloud sync flow where restoring a session or logging in on a second device would prematurely trigger `pushToCloud()` with empty/stale local state, overwriting the cloud database and destroying the active session. This was resolved by using refs to keep stable references to `profile`, `drinks`, and `presets`, removing the destructive `.finally(() => pushToCloud())` chain, and skipping redundant auto-pushes right after cloud pulls.
