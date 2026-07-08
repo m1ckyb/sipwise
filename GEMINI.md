@@ -43,6 +43,8 @@ When requested to "Make a release", where <type> is Patch, Minor, or Major, the 
 
     Update VERSION.txt: Change the content of VERSION.txt to the new version number.
 
+    Update package.json version: Change the "version" field in package.json to match VERSION.txt. The ProfileSettings page reads this field to display the version number (e.g., SipWise v0.1.18).
+
 
     Update Documentation: Review README.md and other docs to reflect new features or significant changes.
 
