@@ -759,6 +759,48 @@ input, select {
   border-color: var(--primary);
   color: var(--primary);
 }
+.btn-ghost {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+.btn-ghost:hover {
+  color: var(--on-surface);
+}
+.restore-source-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.restore-source-modal {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  min-width: 220px;
+}
+.restore-source-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.restore-source-buttons {
+  display: flex;
+  gap: 12px;
+}
+.restore-source-buttons .btn {
+  min-width: 100px;
+  padding: 10px 16px;
+}
 .auth-form {
   display: flex;
   flex-direction: column;

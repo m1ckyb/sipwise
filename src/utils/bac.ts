@@ -208,9 +208,7 @@ export function generateBACGraphData(drinks: Drink[], profile: Profile, now: num
   const step = GRAPH_INTERVAL_MS;
 
   for (let t = graphStart; t <= graphEnd; t += step) {
-    const bac = t <= now
-      ? calculateBACAtTime(sortedDrinks, profile, weightInGrams, r, t)
-      : 0;
+    const bac = calculateBACAtTime(sortedDrinks, profile, weightInGrams, r, t);
     data.push({
       time: t,
       label: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),

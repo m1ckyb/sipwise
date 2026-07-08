@@ -7,10 +7,8 @@ import ConfirmModal from '../ConfirmModal';
 function DataManagerPanel() {
   const { profile, drinks, presets, importData, user, showToast } = useAppContext();
   const [isOpen, setIsOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const restoreFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Confirm modal state
   const [confirmModal, setConfirmModal] = useState<{
     open: boolean;
     title: string;
@@ -18,12 +16,12 @@ function DataManagerPanel() {
     onConfirm: () => void;
   }>({ open: false, title: '', message: '', onConfirm: () => {} });
 
+  const [pickSourceModal, setPickSourceModal] = useState(false);
+
   const showConfirm = (title: string, message: string, onConfirm: () => void) => {
     setConfirmModal({ open: true, title, message, onConfirm });
   };
   const closeConfirm = () => setConfirmModal(prev => ({ ...prev, open: false }));
-
-
 
   const handleExport = () => {
     const data = {
@@ -125,6 +123,7 @@ function DataManagerPanel() {
   };
 
   const handleRestoreFromCloud = async () => {
+    setPickSourceModal(false);
     if (!user) {
       showToast('Sign in on the Profile page to access cloud data.', 'error');
       return;
@@ -151,6 +150,7 @@ function DataManagerPanel() {
   };
 
   const handleRestoreFromFileClick = () => {
+    setPickSourceModal(false);
     restoreFileInputRef.current?.click();
   };
 
@@ -164,7 +164,7 @@ function DataManagerPanel() {
         const content = event.target?.result as string;
         const parsed = JSON.parse(content);
 
-        if (!validateImportData(parsed)) {
+        if (!validateRestoreData(parsed)) {
           showToast('Invalid backup file: data failed validation. Please use a valid SipWise export.', 'error');
           return;
         }
@@ -178,12 +178,7 @@ function DataManagerPanel() {
     reader.readAsText(file);
   };
 
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  /** Validate the shape and value ranges of an import payload */
-  function validateImportData(data: unknown): data is Parameters<typeof importData>[0] {
+  function validateRestoreData(data: unknown): data is Parameters<typeof importData>[0] {
     if (!data || typeof data !== 'object') return false;
     const d = data as Record<string, unknown>;
 
@@ -198,7 +193,7 @@ function DataManagerPanel() {
 
     if (d.drinks !== undefined) {
       if (!Array.isArray(d.drinks)) return false;
-      if (d.drinks.length > 10000) return false; // Reject unreasonably large payloads
+      if (d.drinks.length > 10000) return false;
       for (const drink of d.drinks) {
         if (typeof drink !== 'object' || drink === null) return false;
         const dr = drink as Record<string, unknown>;
@@ -215,37 +210,6 @@ function DataManagerPanel() {
 
     return true;
   }
-
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const content = event.target?.result as string;
-        const parsed = JSON.parse(content);
-
-        if (!validateImportData(parsed)) {
-          showToast('Invalid backup file: data failed validation. Please use a valid SipWise export.', 'error');
-          return;
-        }
-
-        showConfirm(
-          'Import Data',
-          'This will overwrite your current profile, drinks, and presets. Are you sure?',
-          () => {
-            importData(parsed);
-            showToast('Data imported successfully!', 'success');
-          }
-        );
-      } catch {
-        showToast('Invalid backup file. Please make sure it is a valid JSON file exported from SipWise.', 'error');
-      }
-      e.target.value = '';
-    };
-    reader.readAsText(file);
-  };
 
   return (
     <div className={`form-section ${isOpen ? 'open' : 'collapsed'}`}>
@@ -280,23 +244,9 @@ function DataManagerPanel() {
               <button className="btn btn-secondary" onClick={handleBackupFromCloud}>
                 Backup from Cloud
               </button>
-              <button className="btn btn-secondary" onClick={handleRestoreFromCloud}>
-                Restore from Cloud
+              <button className="btn btn-secondary" onClick={() => setPickSourceModal(true)}>
+                Restore Data
               </button>
-              <button className="btn btn-secondary" onClick={handleRestoreFromFileClick}>
-                Restore from File
-              </button>
-              <button className="btn btn-secondary" onClick={handleImportClick}>
-                Import Data
-              </button>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                style={{ display: 'none' }} 
-                accept=".json"
-                onChange={handleFileChange}
-                aria-label="Upload Backup JSON File"
-              />
               <input 
                 type="file" 
                 ref={restoreFileInputRef} 
@@ -306,7 +256,25 @@ function DataManagerPanel() {
                 aria-label="Upload Backup JSON File for Restore"
               />
             </div>
-            <p className="help-text">Backup your data to a JSON file, download a cloud backup, or restore missing entries from a file or the cloud.</p>
+
+            {pickSourceModal && (
+              <div className="restore-source-overlay" onClick={() => setPickSourceModal(false)}>
+                <div className="restore-source-modal" onClick={e => e.stopPropagation()}>
+                  <span className="restore-source-title">Restore from…</span>
+                  <div className="restore-source-buttons">
+                    <button className="btn btn-secondary" onClick={handleRestoreFromCloud}>
+                      ☁️ Cloud
+                    </button>
+                    <button className="btn btn-secondary" onClick={handleRestoreFromFileClick}>
+                      📁 File
+                    </button>
+                  </div>
+                  <button className="btn btn-ghost" onClick={() => setPickSourceModal(false)}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            <p className="help-text">Export your data, download a cloud backup, or restore missing entries from the cloud or a file.</p>
           </div>
         </div>
       </div>

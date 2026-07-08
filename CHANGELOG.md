@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.20] - 2026-07-08
+
+### Changed
+- Simplified Data Management panel: replaced separate "Restore from Cloud", "Restore from File", and "Import Data" buttons with a single "Restore Data" button that shows a source picker (Cloud / File). All restores now merge missing entries only — no overwrites.
+
+### Fixed
+- BAC Timeline graph dropping to zero immediately after "Now" instead of projecting the gradual metabolism decay curve (`generateBACGraphData` was hardcoding future points to `0`)
+
 ## [0.1.19] - 2026-07-08
 
 ### Added
