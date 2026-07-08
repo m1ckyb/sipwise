@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.18] - 2026-07-08
+
+### Fixed
+- **Data loss when switching devices**: Fixed a race condition and stale closure in the initial cloud sync flow where restoring a session or logging in on a second device would prematurely trigger `pushToCloud()` with empty/stale local state, overwriting the cloud database and destroying the active session. This was resolved by using refs to keep stable references to `profile`, `drinks`, and `presets`, removing the destructive `.finally(() => pushToCloud())` chain, and skipping redundant auto-pushes right after cloud pulls.
+
 ## [0.1.17] - 2026-07-08
 
 ### Added
