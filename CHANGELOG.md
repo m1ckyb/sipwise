@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.19] - 2026-07-08
+
+### Added
+- "Backup from Cloud" button in Data Management that fetches and downloads all drinking sessions from Supabase
+- "Restore from Cloud" button in Data Management that merges missing cloud entries into local state
+- "Restore from File" button in Data Management that merges missing entries from a previously downloaded backup file
+
+### Changed
+- Bumped `eslint` from `10.5.0` to `10.6.0`
+- Bumped `recharts` from `3.8.1` to `3.9.0`
+- Bumped `@types/node` from `26.0.0` to `26.0.1`
+- Bumped `globals` from `17.6.0` to `17.7.0`
+- Bumped `@vitejs/plugin-react` from `6.0.2` to `6.0.3`
+
 ## [0.1.18] - 2026-07-08
 
 ### Fixed

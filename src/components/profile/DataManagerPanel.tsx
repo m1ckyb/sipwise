@@ -1,11 +1,14 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { supabase } from '../../utils/supabase';
+import type { Drink, Profile } from '../../utils/bac';
 import ConfirmModal from '../ConfirmModal';
 
 function DataManagerPanel() {
-  const { profile, drinks, presets, importData, showToast } = useAppContext();
+  const { profile, drinks, presets, importData, user, showToast } = useAppContext();
   const [isOpen, setIsOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const restoreFileInputRef = useRef<HTMLInputElement>(null);
 
   // Confirm modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -41,6 +44,138 @@ function DataManagerPanel() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     showToast('Data exported successfully!', 'success');
+  };
+
+  const handleBackupFromCloud = async () => {
+    if (!user) {
+      showToast('Sign in on the Profile page to access cloud data.', 'error');
+      return;
+    }
+    showToast('Downloading cloud backup...', 'info');
+    try {
+      const { data, error } = await supabase
+        .from('user_data')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        showToast('No cloud data found for your account.', 'error');
+        return;
+      }
+
+      const backup = {
+        profile: data.profile,
+        drinks: data.drinks,
+        presets: data.presets,
+        exportDate: new Date().toISOString(),
+        version: '1.0',
+        source: 'cloud',
+      };
+
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `sipwise-cloud-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('Cloud backup downloaded successfully!', 'success');
+    } catch (err) {
+      console.error('Cloud backup failed:', err);
+      showToast('Failed to download cloud backup. Please try again.', 'error');
+    }
+  };
+
+  const restoreData = (source: string, payload: { profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] }) => {
+    const sourceDrinks: Drink[] = payload.drinks ?? [];
+    const sourcePresets: Omit<Drink, 'id' | 'timestamp'>[] = payload.presets ?? [];
+    const sourceProfile: Profile | undefined = payload.profile;
+
+    const localDrinkIds = new Set(drinks.map(d => d.id));
+    const localPresetNames = new Set(presets.map(p => p.name));
+
+    const missingDrinks = sourceDrinks.filter(d => !localDrinkIds.has(d.id));
+    const missingPresets = sourcePresets.filter(p => !localPresetNames.has(p.name));
+
+    if (!missingDrinks.length && !missingPresets.length && !sourceProfile) {
+      showToast(`All ${source} data is already present locally.`, 'success');
+      return;
+    }
+
+    const merged = {
+      profile: sourceProfile,
+      drinks: [...drinks, ...missingDrinks],
+      presets: [...presets, ...missingPresets],
+    };
+
+    showConfirm(
+      `Restore from ${source}`,
+      missingDrinks.length > 0 || missingPresets.length > 0
+        ? `Found ${missingDrinks.length} missing drink(s) and ${missingPresets.length} missing preset(s) in ${source}. Restore them?`
+        : `${source} has profile data. Restore it?`,
+      () => {
+        importData(merged);
+        showToast(`${source} data restored successfully!`, 'success');
+      }
+    );
+  };
+
+  const handleRestoreFromCloud = async () => {
+    if (!user) {
+      showToast('Sign in on the Profile page to access cloud data.', 'error');
+      return;
+    }
+    showToast('Restoring from cloud...', 'info');
+    try {
+      const { data, error } = await supabase
+        .from('user_data')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        showToast('No cloud data found for your account.', 'error');
+        return;
+      }
+
+      restoreData('cloud', data);
+    } catch (err) {
+      console.error('Cloud restore failed:', err);
+      showToast('Failed to restore from cloud. Please try again.', 'error');
+    }
+  };
+
+  const handleRestoreFromFileClick = () => {
+    restoreFileInputRef.current?.click();
+  };
+
+  const handleRestoreFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const parsed = JSON.parse(content);
+
+        if (!validateImportData(parsed)) {
+          showToast('Invalid backup file: data failed validation. Please use a valid SipWise export.', 'error');
+          return;
+        }
+
+        restoreData('file', parsed);
+      } catch {
+        showToast('Invalid backup file. Please make sure it is a valid JSON file exported from SipWise.', 'error');
+      }
+      e.target.value = '';
+    };
+    reader.readAsText(file);
   };
 
   const handleImportClick = () => {
@@ -142,6 +277,15 @@ function DataManagerPanel() {
               <button className="btn btn-secondary" onClick={handleExport}>
                 Export Data
               </button>
+              <button className="btn btn-secondary" onClick={handleBackupFromCloud}>
+                Backup from Cloud
+              </button>
+              <button className="btn btn-secondary" onClick={handleRestoreFromCloud}>
+                Restore from Cloud
+              </button>
+              <button className="btn btn-secondary" onClick={handleRestoreFromFileClick}>
+                Restore from File
+              </button>
               <button className="btn btn-secondary" onClick={handleImportClick}>
                 Import Data
               </button>
@@ -153,8 +297,16 @@ function DataManagerPanel() {
                 onChange={handleFileChange}
                 aria-label="Upload Backup JSON File"
               />
+              <input 
+                type="file" 
+                ref={restoreFileInputRef} 
+                style={{ display: 'none' }} 
+                accept=".json"
+                onChange={handleRestoreFileChange}
+                aria-label="Upload Backup JSON File for Restore"
+              />
             </div>
-            <p className="help-text">Backup your data to a JSON file or restore from a previous backup.</p>
+            <p className="help-text">Backup your data to a JSON file, download a cloud backup, or restore missing entries from a file or the cloud.</p>
           </div>
         </div>
       </div>
