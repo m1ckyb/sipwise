@@ -61,7 +61,7 @@ serve(async (req) => {
     }
 
     const profile: Profile = userData.profile;
-    let drinks: Drink[] = userData.drinks || [];
+    const drinks: Drink[] = userData.drinks || [];
     
     const now = Date.now();
 
@@ -72,7 +72,7 @@ serve(async (req) => {
       let body;
       try {
         body = await req.json();
-      } catch (e) {
+      } catch {
         return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
       }
 
@@ -152,9 +152,10 @@ serve(async (req) => {
       JSON.stringify(payload),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }

@@ -14,7 +14,7 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   );
 }
 
-serve(async (req) => {
+serve(async () => {
   // Prevent unauthorized access, assuming this is invoked by pg_cron or Supabase Scheduled Functions
   // You might want to verify an auth header here in a real production environment.
   
@@ -93,10 +93,9 @@ serve(async (req) => {
           );
           alertsSent++;
           console.log(`Successfully sent push to endpoint: ${sub.endpoint}`);
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error(`Failed to send notification to ${sub.endpoint}:`, err);
-          // If the subscription is gone, we could delete it from the DB
-          if (err.statusCode === 410) {
+          if (err && typeof err === 'object' && 'statusCode' in err && (err as Record<string, unknown>).statusCode === 410) {
             console.log(`Subscription expired (410). Deleting from DB.`);
             await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
           }

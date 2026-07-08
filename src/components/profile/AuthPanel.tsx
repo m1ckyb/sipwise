@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { supabase } from '../../utils/supabase';
 
-const AuthPanel: React.FC = () => {
+function AuthPanel() {
   const { 
     user, lastSynced, isSyncing, pushError, signOut, pushToCloud, pullFromCloud, showToast 
   } = useAppContext();
@@ -12,7 +12,7 @@ const AuthPanel: React.FC = () => {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const handleAuth = async (e: FormEvent) => {
     e.preventDefault();
     setAuthError(null);
     try {
@@ -43,7 +43,7 @@ const AuthPanel: React.FC = () => {
     try {
       await pullFromCloud();
       showToast('Sync complete!', 'success');
-    } catch (err: any) {
+    } catch {
       showToast('Sync completed (push only, pull failed)', 'info');
     }
   };

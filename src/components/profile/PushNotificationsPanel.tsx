@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { supabase } from '../../utils/supabase';
 import { 
@@ -10,7 +10,7 @@ import {
   syncSubscriptionToSupabase
 } from '../../utils/notifications';
 
-const PushNotificationsPanel: React.FC = () => {
+function PushNotificationsPanel() {
   const { user, showToast } = useAppContext();
   const [isOpen, setIsOpen] = useState(false);
   const [pushSupported, setPushSupported] = useState(false);
@@ -89,9 +89,10 @@ const PushNotificationsPanel: React.FC = () => {
           showToast('Notification permission denied. Please enable notifications in your browser settings.', 'error');
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Notification toggle error:', err);
-      showToast(`Something went wrong with push notifications: ${err.message || err}`, 'error');
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Something went wrong with push notifications: ${msg}`, 'error');
     }
   };
 

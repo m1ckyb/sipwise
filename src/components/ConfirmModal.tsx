@@ -1,4 +1,4 @@
-import React from 'react';
+import { memo } from 'react';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -11,7 +11,7 @@ interface ConfirmModalProps {
   onCancel: () => void;
 }
 
-const ConfirmModal: React.FC<ConfirmModalProps> = ({
+const ConfirmModal = memo(function ConfirmModal({
   isOpen,
   title,
   message,
@@ -20,7 +20,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
   danger = false,
   onConfirm,
   onCancel,
-}) => {
+}: ConfirmModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -42,6 +42,6 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default ConfirmModal;

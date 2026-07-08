@@ -1,8 +1,8 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState, type ChangeEvent } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import ConfirmModal from '../ConfirmModal';
 
-const DataManagerPanel: React.FC = () => {
+function DataManagerPanel() {
   const { profile, drinks, presets, importData, showToast } = useAppContext();
   const [isOpen, setIsOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,7 +81,7 @@ const DataManagerPanel: React.FC = () => {
     return true;
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 

@@ -1,33 +1,36 @@
-import React, { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { groupIntoSessions, formatBAC, estimateCalories } from '../utils/bac';
 import type { Drink } from '../utils/bac';
 import BACGraph from './BACGraph';
 import ConfirmModal from './ConfirmModal';
 
-const History: React.FC<{ onEditClick: (drink: Drink) => void }> = ({ onEditClick }) => {
+function History({ onEditClick }: { onEditClick: (drink: Drink) => void }) {
   const { drinks, profile, removeDrink, clearHistory } = useAppContext();
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  const sessions = groupIntoSessions(drinks, profile);
+  const sessions = useMemo(() => groupIntoSessions(drinks, profile), [drinks, profile]);
 
-  const totalDrinks = drinks.length;
-  const totalAlcohol = sessions.reduce((sum, s) => sum + s.totalAlcoholGrams, 0);
-  const totalStandardDrinks = totalAlcohol / 10;
-  
-  const firstDrinkTime = drinks.length > 0 ? Math.min(...drinks.map(d => d.timestamp)) : Date.now();
-  const msInWeek = 7 * 24 * 3600000;
-  const weeksElapsed = Math.max(1, (Date.now() - firstDrinkTime) / msInWeek);
-  
+  // Use a stable reference for "now" to avoid Date.now() in useMemo
+  const [now] = useState(Date.now);
+
+  const { totalDrinks, totalAlcohol, totalStandardDrinks, weeksElapsed, totalCalories, highestBAC } = useMemo(() => {
+    const td = drinks.length;
+    const ta = sessions.reduce((sum, s) => sum + s.totalAlcoholGrams, 0);
+    const tsd = ta / 10;
+    const firstDrinkTime = drinks.length > 0 ? Math.min(...drinks.map(d => d.timestamp)) : now;
+    const msInWeek = 7 * 24 * 3600000;
+    const we = Math.max(1, (now - firstDrinkTime) / msInWeek);
+    const tc = drinks.reduce((sum, d) => sum + (d.calories !== undefined ? d.calories : estimateCalories(d.volume, d.abv)), 0);
+    const hb = sessions.length > 0 ? Math.max(...sessions.map(s => s.peakBAC)) : 0;
+    return { totalDrinks: td, totalAlcohol: ta, totalStandardDrinks: tsd, weeksElapsed: we, totalCalories: tc, highestBAC: hb };
+  }, [drinks, sessions, now]);
+
   const avgWeeklyDrinksCount = totalDrinks / weeksElapsed;
   const avgWeeklyStandardDrinks = totalStandardDrinks / weeksElapsed;
   const avgWeeklyAlcohol = totalAlcohol / weeksElapsed;
-  
-  const totalCalories = drinks.reduce((sum, d) => sum + (d.calories !== undefined ? d.calories : estimateCalories(d.volume, d.abv)), 0);
   const avgWeeklyCalories = totalCalories / weeksElapsed;
-  
-  const highestBAC = sessions.length > 0 ? Math.max(...sessions.map(s => s.peakBAC)) : 0;
 
   const formatDate = (ts: number) => {
     return new Date(ts).toLocaleDateString([], { 
@@ -41,9 +44,9 @@ const History: React.FC<{ onEditClick: (drink: Drink) => void }> = ({ onEditClic
     return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const toggleSession = (sessionId: string) => {
-    setExpandedSession(expandedSession === sessionId ? null : sessionId);
-  };
+  const toggleSession = useCallback((sessionId: string) => {
+    setExpandedSession(prev => prev === sessionId ? null : sessionId);
+  }, []);
 
   return (
     <div className="history">

@@ -1,4 +1,4 @@
-import React from 'react';
+import { memo } from 'react';
 
 export type View = 'dashboard' | 'history' | 'profile';
 
@@ -7,7 +7,7 @@ interface NavBarProps {
   setView: (view: View) => void;
 }
 
-const NavBar: React.FC<NavBarProps> = ({ currentView, setView }) => {
+const NavBar = memo(function NavBar({ currentView, setView }: NavBarProps) {
   return (
     <nav className="navbar">
       <button 
@@ -30,6 +30,6 @@ const NavBar: React.FC<NavBarProps> = ({ currentView, setView }) => {
       </button>
     </nav>
   );
-};
+});
 
 export default NavBar;

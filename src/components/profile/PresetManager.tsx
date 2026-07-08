@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import type { Drink } from '../../utils/bac';
 import { estimateCalories } from '../../utils/bac';
 
-const PresetManager: React.FC = () => {
+function PresetManager() {
   const { profile, setProfile, presets, removePreset, updatePreset } = useAppContext();
   const [isOpen, setIsOpen] = useState(false);
   const [editingPresetName, setEditingPresetName] = useState<string | null>(null);

@@ -1,4 +1,4 @@
-import React from 'react';
+import { memo, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import type { TooltipContentProps } from 'recharts';
 import { generateBACGraphData } from '../utils/bac';
@@ -13,10 +13,24 @@ interface BACGraphProps {
   minimal?: boolean;
 }
 
-const BACGraph: React.FC<BACGraphProps> = ({ drinks, profile, now, showNowLine = true, title = "BAC Timeline", minimal = false }) => {
-  const rawData = generateBACGraphData(drinks, profile, now);
+const CustomTooltip = ({ active, payload, unit }: Partial<TooltipContentProps<number, string>> & { unit: '%' | '‰' }) => {
+  if (active && payload && payload.length && payload[0].value !== undefined) {
+    return (
+      <div className="custom-tooltip">
+        <p className="label">{payload[0].payload.label}</p>
+        <p className="bac">{Number(payload[0].value).toFixed(unit === '‰' ? 2 : 3)}{unit} BAC</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const MemoizedTooltip = memo(CustomTooltip);
+
+const BACGraph = memo(function BACGraph({ drinks, profile, now, showNowLine = true, title = "BAC Timeline", minimal = false }: BACGraphProps) {
+  const rawData = useMemo(() => generateBACGraphData(drinks, profile, now), [drinks, profile, now]);
   const factor = profile.displayUnit === '‰' ? 10 : 1;
-  const data = rawData.map(d => ({ ...d, bac: d.bac * factor }));
+  const data = useMemo(() => rawData.map(d => ({ ...d, bac: d.bac * factor })), [rawData, factor]);
 
   if (data.length === 0) {
     return (
@@ -25,18 +39,6 @@ const BACGraph: React.FC<BACGraphProps> = ({ drinks, profile, now, showNowLine =
       </div>
     );
   }
-
-  const CustomTooltip = ({ active, payload }: Partial<TooltipContentProps<number, string>>) => {
-    if (active && payload && payload.length && payload[0].value !== undefined) {
-      return (
-        <div className="custom-tooltip">
-          <p className="label">{payload[0].payload.label}</p>
-          <p className="bac">{Number(payload[0].value).toFixed(profile.displayUnit === '‰' ? 2 : 3)}{profile.displayUnit} BAC</p>
-        </div>
-      );
-    }
-    return null;
-  };
 
   return (
     <div className={minimal ? "graph-container minimal" : "card graph-card"}>
@@ -65,7 +67,7 @@ const BACGraph: React.FC<BACGraphProps> = ({ drinks, profile, now, showNowLine =
               domain={[0, (dataMax: number) => Math.max(0.1 * factor, dataMax + (0.01 * factor))]}
               width={minimal ? 30 : 35}
             />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<MemoizedTooltip unit={profile.displayUnit} />} />
             {showNowLine && <ReferenceLine x="Now" stroke="var(--secondary)" strokeDasharray="3 3" />}
             <Area 
               type="monotone" 
@@ -80,6 +82,6 @@ const BACGraph: React.FC<BACGraphProps> = ({ drinks, profile, now, showNowLine =
       </div>
     </div>
   );
-};
+});
 
 export default BACGraph;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { Drink } from '../utils/bac';
 import { estimateCalories } from '../utils/bac';
@@ -9,36 +9,23 @@ interface DrinkLoggerProps {
   editDrink?: Drink; // Pass this to enter edit mode
 }
 
-const DrinkLogger: React.FC<DrinkLoggerProps> = ({ isOpen, onClose, editDrink }) => {
+function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
   const { presets, addDrink, addPreset, updateDrink } = useAppContext();
-  const [isCustom, setIsCustom] = useState(false);
-  const [customDrink, setCustomDrink] = useState<{ name: string; volume: number; abv: number; calories: number | '' }>({
-    name: '',
-    volume: 330,
-    abv: 5,
-    calories: ''
-  });
+  const isEditing = !!editDrink;
+  const [isCustom, setIsCustom] = useState(isEditing);
+  const [customDrink, setCustomDrink] = useState<{ name: string; volume: number; abv: number; calories: number | '' }>(() =>
+    isEditing ? {
+      name: editDrink.name || '',
+      volume: editDrink.volume,
+      abv: editDrink.abv,
+      calories: editDrink.calories !== undefined ? editDrink.calories : ''
+    } : { name: '', volume: 330, abv: 5, calories: '' }
+  );
   const [saveAsPreset, setSaveAsPreset] = useState(false);
-  const [timestamp, setTimestamp] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (editDrink) {
-      setIsCustom(true);
-      setCustomDrink({ 
-        name: editDrink.name || '', 
-        volume: editDrink.volume, 
-        abv: editDrink.abv,
-        calories: editDrink.calories !== undefined ? editDrink.calories : ''
-      });
-      setTimestamp(editDrink.timestamp);
-    } else {
-      setIsCustom(false);
-      setCustomDrink({ name: '', volume: 330, abv: 5, calories: '' });
-      setTimestamp(Date.now());
-    }
-  }, [editDrink, isOpen]);
+  const [timestamp, setTimestamp] = useState(() => isEditing ? editDrink.timestamp : Date.now());
 
   if (!isOpen) return null;
+  const formKey = isEditing ? editDrink!.id : 'new';
 
   // Helper to format Date for datetime-local input
   const toLocalISO = (ts: number) => {
@@ -67,7 +54,7 @@ const DrinkLogger: React.FC<DrinkLoggerProps> = ({ isOpen, onClose, editDrink })
     });
   };
 
-  const handleAddCustom = (e: React.FormEvent) => {
+  const handleAddCustom = (e: FormEvent) => {
     e.preventDefault();
     const parsedCalories = customDrink.calories !== '' ? Number(customDrink.calories) : undefined;
     const finalDrink = {
@@ -91,7 +78,7 @@ const DrinkLogger: React.FC<DrinkLoggerProps> = ({ isOpen, onClose, editDrink })
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content card">
+      <div className="modal-content card" key={formKey}>
         <h2>{editDrink ? 'Edit Drink' : 'Add Drink'}</h2>
 
         <div className="time-selector">

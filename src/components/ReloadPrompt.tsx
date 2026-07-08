@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
-const ReloadPrompt: React.FC = () => {
+function ReloadPrompt() {
   const {
     offlineReady: [offlineReady, setOfflineReady],
     needRefresh: [needRefresh, setNeedRefresh],
@@ -10,7 +10,7 @@ const ReloadPrompt: React.FC = () => {
     onRegistered(r: ServiceWorkerRegistration | undefined) {
       console.log('SW Registered: ', r);
     },
-    onRegisterError(error: Error | any) {
+    onRegisterError(error: unknown) {
       console.log('SW registration error', error);
     },
   });

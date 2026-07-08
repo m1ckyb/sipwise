@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 
-const MetabolismPanel: React.FC = () => {
+function MetabolismPanel() {
   const { profile, setProfile } = useAppContext();
   const [isOpen, setIsOpen] = useState(false);
 

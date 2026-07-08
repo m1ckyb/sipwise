@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.17] - 2026-07-08
+
+### Added
+- Quick Add button on Dashboard that re-logs the most recent drink from the current session
+
+### Changed
+- Memoized `AppContext` value to prevent cascading re-renders of all consumers
+- Memoized expensive derived data (sessions, stats, BAC calculations) in `Dashboard` and `History`
+- Wrapped `BACGraph` in `React.memo` and memoized graph data generation
+- Wrapped pure leaf components (`NavBar`, `ConfirmModal`) in `React.memo`
+- Wrapped all context action functions in `useCallback` for stable references
+- Optimized `generateBACGraphData` — sort once, reuse pre-computed values across loop iterations
+- Reduced redundant sorting in `calculateBAC` when input is already sorted
+- Removed unnecessary `React` imports across all components (React 19 JSX transform)
+- Converted `storageWarning` from state to derived `useMemo`
+
+### Fixed
+- Fixed React 19 lint violations: `setState` in effects, `Date.now()` during render, ref updates during render
+- Fixed `any` type annotations across the codebase
+- Fixed unused variable in `supabase/functions/`
+- Fixed `Nightly Build` CI concurrency grouping syntax
+
 ## [0.1.16] - 2026-06-27
 
 ### Changed

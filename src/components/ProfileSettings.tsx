@@ -1,4 +1,3 @@
-import React from 'react';
 import { useAppContext } from '../context/AppContext';
 import pkg from '../../package.json';
 import BodyMetricsForm from './profile/BodyMetricsForm';
@@ -8,7 +7,7 @@ import AuthPanel from './profile/AuthPanel';
 import PushNotificationsPanel from './profile/PushNotificationsPanel';
 import DataManagerPanel from './profile/DataManagerPanel';
 
-const ProfileSettings: React.FC = () => {
+function ProfileSettings() {
   const { storageWarning } = useAppContext();
 
   return (

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { calculateBAC, calculateTimeToZero, formatBAC, groupIntoSessions, estimateCalories } from '../utils/bac';
 import BACGraph from './BACGraph';
 
-const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
+function Dashboard({ onAddClick }: { onAddClick: () => void }) {
   const { drinks, profile, addDrink, user, pushToCloud, pullFromCloud, isSyncing, showToast } = useAppContext();
   const [currentBAC, setCurrentBAC] = useState(0);
   const [timeToZero, setTimeToZero] = useState(0);
@@ -18,63 +18,74 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
     };
 
     update();
-    const interval = setInterval(update, 60000); // Update every minute
+    const interval = setInterval(update, 60000);
     return () => clearInterval(interval);
   }, [drinks, profile]);
 
-  const getStatusColor = (bac: number) => {
+  const getStatusColor = useCallback((bac: number) => {
     if (bac === 0) return 'var(--safe)';
     if (bac < 0.05) return 'var(--warning)';
     return 'var(--danger)';
-  };
+  }, []);
 
-  const getStatusText = (bac: number) => {
+  const getStatusText = useCallback((bac: number) => {
     if (bac === 0) return 'Sober';
     if (bac < 0.05) return 'Below Limit';
     if (bac < 0.08) return 'Impaired';
     return 'Dangerous';
-  };
+  }, []);
 
-  const formatHours = (hours: number) => {
+  const formatHours = useCallback((hours: number) => {
     const h = Math.floor(hours);
     const m = Math.round((hours - h) * 60);
     if (h === 0 && m === 0) return 'Now';
     return `${h}h ${m}m`;
-  };
+  }, []);
 
-  const getNextDrink = (): { volume: number; abv: number; name?: string } | null => {
-    if (profile.quickDrink) {
-      return profile.quickDrink;
-    }
+  const nextDrink = useMemo(() => {
+    if (profile.quickDrink) return profile.quickDrink;
     if (drinks.length > 0) {
       const last = drinks[drinks.length - 1];
       return { volume: last.volume, abv: last.abv, name: last.name };
     }
     return null;
-  };
+  }, [profile.quickDrink, drinks]);
 
-  const nextDrink = getNextDrink();
-  const futureDrinks = nextDrink
-    ? [...drinks, { id: 'prediction', timestamp: now, volume: nextDrink.volume, abv: nextDrink.abv }]
-    : null;
-  const predictedBAC = futureDrinks ? calculateBAC(futureDrinks, profile, now) : null;
-  const predictedTimeToZero = futureDrinks ? calculateTimeToZero(futureDrinks, profile, now) : null;
+  const futureDrinks = useMemo(() =>
+    nextDrink
+      ? [...drinks, { id: 'prediction', timestamp: now, volume: nextDrink.volume, abv: nextDrink.abv }]
+      : null,
+    [nextDrink, drinks, now]
+  );
+
+  const predictedBAC = useMemo(() =>
+    futureDrinks ? calculateBAC(futureDrinks, profile, now) : null,
+    [futureDrinks, profile, now]
+  );
+
+  const predictedTimeToZero = useMemo(() =>
+    futureDrinks ? calculateTimeToZero(futureDrinks, profile, now) : null,
+    [futureDrinks, profile, now]
+  );
 
   const isActive = currentBAC > 0;
-  const sessions = groupIntoSessions(drinks, profile);
-  const currentSession = sessions.length > 0 ? sessions[0] : null;
 
-  const activeDrinks = isActive && currentSession ? currentSession.drinks : [];
-  const totalAlcohol = isActive && currentSession ? currentSession.totalAlcoholGrams : 0;
-  const firstDrinkTime = isActive && currentSession ? currentSession.startTime : now;
-  const totalCalories = activeDrinks.reduce((sum, d) => {
-    return sum + (d.calories !== undefined ? d.calories : estimateCalories(d.volume, d.abv));
-  }, 0);
+  const sessions = useMemo(() => groupIntoSessions(drinks, profile), [drinks, profile]);
+  const currentSession = useMemo(() => sessions.length > 0 ? sessions[0] : null, [sessions]);
 
-  // Safety rule: 1 standard drink (10g) per hour from the first drink
+  const activeDrinks = useMemo(() => isActive && currentSession ? currentSession.drinks : [], [isActive, currentSession]);
+  const totalAlcohol = useMemo(() => isActive && currentSession ? currentSession.totalAlcoholGrams : 0, [isActive, currentSession]);
+  const firstDrinkTime = useMemo(() => isActive && currentSession ? currentSession.startTime : now, [isActive, currentSession, now]);
+
+  const totalCalories = useMemo(() =>
+    activeDrinks.reduce((sum, d) =>
+      sum + (d.calories !== undefined ? d.calories : estimateCalories(d.volume, d.abv)), 0),
+    [activeDrinks]
+  );
+
   const safetySoberTime = firstDrinkTime + (totalAlcohol / 10) * 3600000;
   const standardSoberTime = now + timeToZero * 3600000;
-  const isSafetyBufferRelevant = isActive && totalAlcohol > 0 && safetySoberTime > (standardSoberTime + 1800000); // 30 min diff threshold
+  const isSafetyBufferRelevant = isActive && totalAlcohol > 0 && safetySoberTime > (standardSoberTime + 1800000);
 
   return (
     <div className="dashboard">
@@ -177,6 +188,20 @@ const Dashboard: React.FC<{ onAddClick: () => void }> = ({ onAddClick }) => {
         <button className="add-drink-btn" onClick={onAddClick}>
           + Add Drink
         </button>
+        {isActive && currentSession && currentSession.drinks.length > 0 && (
+          <button className="quick-add-btn" onClick={() => {
+            const lastDrink = currentSession.drinks[0];
+            addDrink({
+              timestamp: Date.now(),
+              volume: lastDrink.volume,
+              abv: lastDrink.abv,
+              name: lastDrink.name,
+              calories: lastDrink.calories,
+            });
+          }}>
+            ↩ {currentSession.drinks[0].name || 'Last Drink'}
+          </button>
+        )}
         {profile.quickDrink && (
           <button className="quick-drink-btn" onClick={() => {
             addDrink({

@@ -154,10 +154,8 @@ export async function triggerLocalTestNotification(delaySeconds: number = 0): Pr
       icon: '/favicon.svg',
       badge: '/favicon.svg',
       vibrate: [100, 50, 100],
-      data: {
-        url: window.location.origin + '/'
-      }
-    } as any);
+      data: { url: window.location.origin + '/' },
+    } as NotificationOptions);
   };
 
   if (delaySeconds > 0) {

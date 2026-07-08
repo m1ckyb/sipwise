@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import type { Drink, Profile } from '../utils/bac';
 import { supabase } from '../utils/supabase';
 import type { User } from '@supabase/supabase-js';
@@ -26,6 +26,19 @@ interface AppContextType {
   storageWarning: string | null;
   toasts: ToastEntry[];
   showToast: (message: string, type?: ToastType) => void;
+}
+
+/** Apply the 365→375ml data repair to drinks/presets arrays */
+function applyVolumeRepair<T extends { name?: string; volume: number }>(items: T[]): T[] {
+  let changed = false;
+  const result = items.map(d => {
+    if (d.name?.toLowerCase().includes('black') && d.volume === 365) {
+      changed = true;
+      return { ...d, volume: 375 };
+    }
+    return d;
+  });
+  return changed ? result : items;
 }
 
 /** Types of toast notifications */
@@ -90,14 +103,13 @@ const migrateLocalStorageKeys = () => {
 
 migrateLocalStorageKeys();
 
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem('sipwise_last_synced'));
   const [isSyncing, setIsSyncing] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
-  const [storageWarning, setStorageWarning] = useState<string | null>(null);
-  const [pendingSignIn, setPendingSignIn] = useState(false);
+  const pendingSyncRef = useRef(false);
 
   const [profile, setProfileState] = useState<Profile>(() => {
     const saved = localStorage.getItem('sipwise_profile');
@@ -108,56 +120,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  // Apply 365→375ml repair inside initializer
   const [drinks, setDrinks] = useState<Drink[]>(() => {
     const saved = localStorage.getItem('sipwise_drinks');
     try {
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+      if (saved) {
+        const parsed: Drink[] = JSON.parse(saved);
+        return applyVolumeRepair(parsed);
+      }
+    } catch { /* ignore */ }
+    return [];
   });
 
   const [presets, setPresets] = useState<Omit<Drink, 'id' | 'timestamp'>[]>(() => {
     const saved = localStorage.getItem('sipwise_presets');
     try {
-      return saved ? JSON.parse(saved) : DEFAULT_PRESETS;
-    } catch {
-      return DEFAULT_PRESETS;
-    }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return applyVolumeRepair(parsed);
+      }
+    } catch { /* ignore */ }
+    return DEFAULT_PRESETS;
   });
 
-  useEffect(() => {
-    safeSetItem('sipwise_profile', JSON.stringify(profile));
-  }, [profile]);
-
-  useEffect(() => {
-    safeSetItem('sipwise_drinks', JSON.stringify(drinks));
-    // Warn if drink history is getting large (>500 entries)
+  // Derive storage warning from drinks length (declared after drinks)
+  const storageWarning = useMemo(() => {
     if (drinks.length > 500) {
-      setStorageWarning(`You have ${drinks.length} drink entries. Consider exporting and clearing old history to keep the app running smoothly.`);
-    } else {
-      setStorageWarning(null);
+      return `You have ${drinks.length} drink entries. Consider exporting and clearing old history to keep the app running smoothly.`;
     }
-  }, [drinks]);
+    return null;
+  }, [drinks.length]);
 
+  // Mark repair flag once on mount
   useEffect(() => {
-    safeSetItem('sipwise_presets', JSON.stringify(presets));
-  }, [presets]);
-
-  // Auth Listener
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      if (event === 'SIGNED_IN') {
-        setPendingSignIn(true);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    const hasRepaired = localStorage.getItem('sipwise_repaired_365');
+    if (!hasRepaired) {
+      localStorage.setItem('sipwise_repaired_365', 'true');
+    }
   }, []);
 
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
@@ -232,19 +231,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user]);
 
+  const setProfile = useCallback((newProfile: Profile) => setProfileState(newProfile), []);
+  const addDrink = useCallback((drink: Omit<Drink, 'id'>) => {
+    const newDrink: Drink = { ...drink, id: crypto.randomUUID() };
+    setDrinks(prev => [...prev, newDrink]);
+  }, []);
+  const removeDrink = useCallback((id: string) => setDrinks(prev => prev.filter(d => d.id !== id)), []);
+  const updateDrink = useCallback((id: string, updates: Partial<Drink>) => {
+    setDrinks(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
+  }, []);
+  const addPreset = useCallback((preset: Omit<Drink, 'id' | 'timestamp'>) => {
+    setPresets(prev => [...prev, preset]);
+  }, []);
+  const removePreset = useCallback((name: string) => setPresets(prev => prev.filter(p => p.name !== name)), []);
+  const updatePreset = useCallback((name: string, updates: Partial<Omit<Drink, 'id' | 'timestamp'>>) => {
+    setPresets(prev => prev.map(p => p.name === name ? { ...p, ...updates } : p));
+  }, []);
+  const clearHistory = useCallback(() => setDrinks([]), []);
+  const importData = useCallback((data: { profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] }) => {
+    if (data.profile) setProfileState(data.profile);
+    if (data.drinks) setDrinks(data.drinks);
+    if (data.presets) setPresets(data.presets);
+  }, []);
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setLastSynced(null);
+    localStorage.removeItem('sipwise_last_synced');
+  }, []);
+
+  // =============================================
+  // Side effects
+  // =============================================
+
+  useEffect(() => {
+    safeSetItem('sipwise_profile', JSON.stringify(profile));
+  }, [profile]);
+
+  useEffect(() => {
+    safeSetItem('sipwise_drinks', JSON.stringify(drinks));
+  }, [drinks]);
+
+  useEffect(() => {
+    safeSetItem('sipwise_presets', JSON.stringify(presets));
+  }, [presets]);
+
+  // Auth Listener
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+      if (event === 'SIGNED_IN') {
+        pendingSyncRef.current = true;
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Pull from cloud on fresh login, then push any local changes
   useEffect(() => {
-    if (pendingSignIn && user) {
-      setPendingSignIn(false);
-      pullFromCloud().finally(() => {
-        pushToCloud();
-      });
+    if (pendingSyncRef.current && user) {
+      pendingSyncRef.current = false;
+      pullFromCloud().finally(() => pushToCloud());
     }
-  }, [pendingSignIn, user, pullFromCloud, pushToCloud]);
+  }, [user, pullFromCloud, pushToCloud]);
 
   // Auto-push on data changes only, not on user login
   const pushToCloudRef = useRef(pushToCloud);
-  pushToCloudRef.current = pushToCloud;
+  useEffect(() => {
+    pushToCloudRef.current = pushToCloud;
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -252,99 +312,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       pushToCloudRef.current();
     }, 2000);
     return () => clearTimeout(timer);
-    // Only fire when data actually changes — not when user logs in
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, drinks, presets]);
 
-  const setProfile = (newProfile: Profile) => setProfileState(newProfile);
-
-  const addDrink = (drink: Omit<Drink, 'id'>) => {
-    const newDrink: Drink = {
-      ...drink,
-      id: crypto.randomUUID(),
-    };
-    setDrinks(prev => [...prev, newDrink]);
-  };
-
-  const removeDrink = (id: string) => {
-    setDrinks(prev => prev.filter(d => d.id !== id));
-  };
-
-  const updateDrink = (id: string, updates: Partial<Drink>) => {
-    setDrinks(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
-  };
-
-  const addPreset = (preset: Omit<Drink, 'id' | 'timestamp'>) => {
-    setPresets(prev => [...prev, preset]);
-  };
-
-  const removePreset = (name: string) => {
-    setPresets(prev => prev.filter(p => p.name !== name));
-  };
-
-  const updatePreset = (name: string, updates: Partial<Omit<Drink, 'id' | 'timestamp'>>) => {
-    setPresets(prev => prev.map(p => p.name === name ? { ...p, ...updates } : p));
-  };
-
-  // One-time data repair for common errors (like 365ml DBL-Black)
-  useEffect(() => {
-    const hasRepaired = localStorage.getItem('sipwise_repaired_365');
-    if (!hasRepaired && drinks.length > 0) {
-      let repaired = false;
-      const newDrinks = drinks.map(d => {
-        if (d.name?.toLowerCase().includes('black') && d.volume === 365) {
-          repaired = true;
-          return { ...d, volume: 375 };
-        }
-        return d;
-      });
-
-      const newPresets = presets.map(p => {
-        if (p.name?.toLowerCase().includes('black') && p.volume === 365) {
-          repaired = true;
-          return { ...p, volume: 375 };
-        }
-        return p;
-      });
-
-      if (repaired) {
-        setDrinks(newDrinks);
-        setPresets(newPresets);
-      }
-      localStorage.setItem('sipwise_repaired_365', 'true');
-    }
-  }, [drinks, presets]);
-
-  // clearHistory just clears — confirmation is handled by the calling UI component
-  const clearHistory = () => {
-    setDrinks([]);
-  };
-
-  const importData = (data: { profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] }) => {
-    if (data.profile) setProfileState(data.profile);
-    if (data.drinks) setDrinks(data.drinks);
-    if (data.presets) setPresets(data.presets);
-  };
-
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setLastSynced(null);
-    localStorage.removeItem('sipwise_last_synced');
-    setStorageWarning(null);
-  };
+  const contextValue = useMemo(() => ({
+    profile, setProfile,
+    drinks, addDrink, removeDrink, updateDrink,
+    presets, addPreset, removePreset, updatePreset,
+    clearHistory,
+    importData,
+    user, lastSynced, isSyncing, pushError,
+    signOut, pullFromCloud, pushToCloud,
+    storageWarning, toasts, showToast,
+  }), [profile, setProfile, drinks, addDrink, removeDrink, updateDrink,
+      presets, addPreset, removePreset, updatePreset,
+      clearHistory, importData,
+      user, lastSynced, isSyncing, pushError, storageWarning, toasts,
+      showToast, pullFromCloud, pushToCloud, signOut]);
 
   return (
-    <AppContext.Provider value={{
-      profile, setProfile,
-      drinks, addDrink, removeDrink, updateDrink,
-      presets, addPreset, removePreset, updatePreset,
-      clearHistory,
-      importData,
-      user, lastSynced, isSyncing, pushError,
-      signOut, pullFromCloud, pushToCloud,
-      storageWarning, toasts, showToast,
-    }}>
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

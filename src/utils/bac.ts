@@ -125,44 +125,40 @@ export function calculateWidmarkR(profile: Profile): number {
  * Note: This implementation assumes instant absorption for simplicity, 
  * which is common for basic BAC trackers.
  */
-export function calculateBAC(drinks: Drink[], profile: Profile, currentTime: number = Date.now()): number {
-  if (drinks.length === 0) return 0;
-
-  // Filter drinks that haven't happened yet
-  const pastDrinks = drinks.filter(d => d.timestamp <= currentTime);
-  if (pastDrinks.length === 0) return 0;
-
-  // Sort drinks chronologically
-  const sortedDrinks = [...pastDrinks].sort((a, b) => a.timestamp - b.timestamp);
-
-  const weightInGrams = profile.weight * 1000;
-  const r = calculateWidmarkR(profile);
-
+function calculateBACAtTime(pastDrinks: Drink[], profile: Profile, weightInGrams: number, r: number, currentTime: number): number {
   let currentBAC = 0;
-  let lastTime = sortedDrinks[0].timestamp;
+  let lastTime = pastDrinks[0].timestamp;
 
-  for (const drink of sortedDrinks) {
-    // 1. Calculate hours since the last event (drink)
+  for (const drink of pastDrinks) {
     const hoursPassed = (drink.timestamp - lastTime) / (1000 * 60 * 60);
-    
-    // 2. Subtract metabolized BAC since the last event
     currentBAC -= profile.metabolismRate * hoursPassed;
     if (currentBAC < 0) currentBAC = 0;
 
-    // 3. Add the contribution of the new drink
     const alcoholGrams = drink.volume * (drink.abv / 100) * ETHANOL_DENSITY;
     const addedBAC = (alcoholGrams / (weightInGrams * r)) * 100;
     currentBAC += addedBAC;
 
-    // 4. Update the tracker time
     lastTime = drink.timestamp;
   }
 
-  // 5. Final metabolism from the last drink to the current time
   const finalHoursPassed = (currentTime - lastTime) / (1000 * 60 * 60);
   currentBAC -= profile.metabolismRate * finalHoursPassed;
 
   return Math.max(0, currentBAC);
+}
+
+export function calculateBAC(drinks: Drink[], profile: Profile, currentTime: number = Date.now()): number {
+  if (drinks.length === 0) return 0;
+
+  const pastDrinks = drinks.filter(d => d.timestamp <= currentTime);
+  if (pastDrinks.length === 0) return 0;
+
+  const sortedDrinks = pastDrinks.length === drinks.length ? pastDrinks : [...pastDrinks].sort((a, b) => a.timestamp - b.timestamp);
+
+  const weightInGrams = profile.weight * 1000;
+  const r = calculateWidmarkR(profile);
+
+  return calculateBACAtTime(sortedDrinks, profile, weightInGrams, r, currentTime);
 }
 
 /**
@@ -181,45 +177,51 @@ export function calculateTimeToZero(drinks: Drink[], profile: Profile, currentTi
 export function generateBACGraphData(drinks: Drink[], profile: Profile, now: number = Date.now()): { time: number; label: string; bac: number }[] {
   if (drinks.length === 0) return [];
 
-  const sortedDrinks = [...drinks].sort((a, b) => a.timestamp - b.timestamp);
+  const pastDrinks = drinks.filter(d => d.timestamp <= now);
+  if (pastDrinks.length === 0) return [];
+
+  const sortedDrinks = [...pastDrinks].sort((a, b) => a.timestamp - b.timestamp);
+  const weightInGrams = profile.weight * 1000;
+  const r = calculateWidmarkR(profile);
+
   const startTime = sortedDrinks[0].timestamp;
-  
   const lastDrinkTime = sortedDrinks[sortedDrinks.length - 1].timestamp;
-  const timeToZeroFromLast = calculateTimeToZero(drinks, profile, lastDrinkTime);
+
+  const bacAtLastDrink = calculateBACAtTime(sortedDrinks, profile, weightInGrams, r, lastDrinkTime);
+  const timeToZeroFromLast = bacAtLastDrink / profile.metabolismRate;
   let endTime = lastDrinkTime + (timeToZeroFromLast * MS_PER_HOUR);
 
-  const timeToZeroFromNow = calculateTimeToZero(drinks, profile, now);
+  const bacAtNow = calculateBACAtTime(sortedDrinks, profile, weightInGrams, r, now);
+  const timeToZeroFromNow = bacAtNow / profile.metabolismRate;
   if (now + (timeToZeroFromNow * MS_PER_HOUR) > endTime) {
     endTime = now + (timeToZeroFromNow * MS_PER_HOUR);
   }
 
-  // Buffer before and after
   const graphStart = startTime - GRAPH_PRE_FIRST_DRINK_MS;
   let graphEnd = endTime + GRAPH_POST_SOBER_MS;
 
-  // Only extend to 'now' if 'now' is within 4 hours of the graph end
   if (now > startTime && now < graphEnd + GRAPH_DYNAMICTHRESHOLD_MS) {
     graphEnd = Math.max(graphEnd, now + GRAPH_NOW_BUFFER_MS);
   }
 
   const data: { time: number; label: string; bac: number }[] = [];
-  const step = GRAPH_INTERVAL_MS; // 30 minute intervals
+  const step = GRAPH_INTERVAL_MS;
 
   for (let t = graphStart; t <= graphEnd; t += step) {
-    const bac = calculateBAC(drinks, profile, t);
+    const bac = t <= now
+      ? calculateBACAtTime(sortedDrinks, profile, weightInGrams, r, t)
+      : 0;
     data.push({
       time: t,
       label: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       bac: parseFloat(bac.toFixed(4))
     });
-    
-    // Ensure we include 'now' specifically if it's within the graph bounds
+
     if (t < now && t + step > now && now <= graphEnd) {
-      const currentBac = calculateBAC(drinks, profile, now);
       data.push({
         time: now,
         label: 'Now',
-        bac: parseFloat(currentBac.toFixed(4))
+        bac: parseFloat(bacAtNow.toFixed(4))
       });
     }
   }
@@ -259,14 +261,12 @@ export function groupIntoSessions(drinks: Drink[], profile: Profile): Session[] 
 
 function createSessionObject(drinks: Drink[], profile: Profile): Session {
   const totalAlcoholGrams = drinks.reduce((sum, d) => sum + (d.volume * (d.abv / 100) * ETHANOL_DENSITY), 0);
-  
-  // Calculate Peak BAC during this specific session
+
   let peakBAC = 0;
   const startTime = drinks[0].timestamp;
   const lastDrinkTime = drinks[drinks.length - 1].timestamp;
   const endTime = lastDrinkTime + (calculateTimeToZero(drinks, profile, lastDrinkTime) * MS_PER_HOUR);
 
-  // Sample BAC every 15 mins to find peak
   for (let t = startTime; t <= endTime; t += PEAK_BAC_SAMPLE_MS) {
     const bac = calculateBAC(drinks, profile, t);
     if (bac > peakBAC) peakBAC = bac;

@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { calculateWidmarkR } from '../../utils/bac';
 
-const BodyMetricsForm: React.FC = () => {
+function BodyMetricsForm() {
   const { profile, setProfile } = useAppContext();
   const [isOpen, setIsOpen] = useState(true);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setProfile({
       ...profile,
