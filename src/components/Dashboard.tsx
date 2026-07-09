@@ -73,9 +73,11 @@ function Dashboard({ onAddClick }: { onAddClick: () => void }) {
   const sessions = useMemo(() => groupIntoSessions(drinks, profile), [drinks, profile]);
   const currentSession = useMemo(() => sessions.length > 0 ? sessions[0] : null, [sessions]);
 
+  const sessionTotalAlcohol = useMemo(() => currentSession ? currentSession.totalAlcoholGrams : 0, [currentSession]);
+  const sessionStartTime = useMemo(() => currentSession ? currentSession.startTime : now, [currentSession, now]);
+
   const activeDrinks = useMemo(() => isActive && currentSession ? currentSession.drinks : [], [isActive, currentSession]);
   const totalAlcohol = useMemo(() => isActive && currentSession ? currentSession.totalAlcoholGrams : 0, [isActive, currentSession]);
-  const firstDrinkTime = useMemo(() => isActive && currentSession ? currentSession.startTime : now, [isActive, currentSession, now]);
 
   const totalCalories = useMemo(() =>
     activeDrinks.reduce((sum, d) =>
@@ -83,9 +85,9 @@ function Dashboard({ onAddClick }: { onAddClick: () => void }) {
     [activeDrinks]
   );
 
-  const safetySoberTime = firstDrinkTime + (totalAlcohol / 10) * 3600000;
+  const safetySoberTime = sessionStartTime + (sessionTotalAlcohol / 10) * 3600000;
   const standardSoberTime = now + timeToZero * 3600000;
-  const isSafetyBufferRelevant = isActive && totalAlcohol > 0 && safetySoberTime > (standardSoberTime + 1800000);
+  const isSafetyBufferRelevant = sessionTotalAlcohol > 0 && safetySoberTime > (standardSoberTime + 1800000);
 
   return (
     <div className="dashboard">
@@ -135,6 +137,11 @@ function Dashboard({ onAddClick }: { onAddClick: () => void }) {
         <div className="status-badge" style={{ backgroundColor: getStatusColor(currentBAC) }}>
           {getStatusText(currentBAC)}
         </div>
+        {currentBAC === 0 && isSafetyBufferRelevant && (
+          <p className="safety-text" style={{ marginTop: '8px', fontSize: '0.85rem', textAlign: 'center', color: '#ff9800' }}>
+            Govt. guidelines suggest you might not be safe until <strong>{new Date(safetySoberTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
+          </p>
+        )}
       </div>
 
       {isActive && (
@@ -168,18 +175,19 @@ function Dashboard({ onAddClick }: { onAddClick: () => void }) {
             </p>
           </div>
 
-          {isSafetyBufferRelevant && (
-            <div className="card safety-card">
-              <span className="label safety-label">⚠️ Safety Buffer (1 Drink/Hr Rule)</span>
-              <p className="safety-text">
-                Govt. guidelines suggest you might not be safe until <strong>{new Date(safetySoberTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
-              </p>
-              <p className="help-text safety-help">
-                The "1 standard drink per hour" rule is a safer, more conservative estimate for larger body weights.
-              </p>
-            </div>
-          )}
         </>
+      )}
+
+      {isActive && isSafetyBufferRelevant && (
+        <div className="card safety-card">
+          <span className="label safety-label">⚠️ Safety Buffer (1 Drink/Hr Rule)</span>
+          <p className="safety-text">
+            Govt. guidelines suggest you might not be safe until <strong>{new Date(safetySoberTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
+          </p>
+          <p className="help-text safety-help">
+            The "1 standard drink per hour" rule is a safer, more conservative estimate for larger body weights.
+          </p>
+        </div>
       )}
 
       <BACGraph drinks={currentSession ? currentSession.drinks : []} profile={profile} now={now} />
