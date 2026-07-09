@@ -982,6 +982,17 @@ input:focus, select:focus {
   font-size: 0.8rem;
   padding: 4px 8px;
 }
+.load-more-btn {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 8px 16px;
+  margin: 8px auto;
+  display: block;
+  cursor: pointer;
+  font-size: 0.85rem;
+  border-radius: 6px;
+}
 .session-card {
   padding: 0;
   overflow: hidden;

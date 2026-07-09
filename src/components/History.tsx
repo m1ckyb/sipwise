@@ -9,8 +9,10 @@ function History({ onEditClick }: { onEditClick: (drink: Drink) => void }) {
   const { drinks, profile, removeDrink, clearHistory } = useAppContext();
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(10);
 
   const sessions = useMemo(() => groupIntoSessions(drinks, profile), [drinks, profile]);
+  const visibleSessions = useMemo(() => sessions.slice(0, visibleCount), [sessions, visibleCount]);
 
   // Use a stable reference for "now" to avoid Date.now() in useMemo
   const [now] = useState(Date.now);
@@ -109,7 +111,7 @@ function History({ onEditClick }: { onEditClick: (drink: Drink) => void }) {
         </div>
       ) : (
         <div className="sessions-list">
-          {sessions.map(session => {
+          {visibleSessions.map(session => {
             const sessionCalories = session.drinks.reduce((sum, d) => sum + (d.calories !== undefined ? d.calories : estimateCalories(d.volume, d.abv)), 0);
             return (
               <div key={session.id} className="session-card card">
@@ -174,6 +176,11 @@ function History({ onEditClick }: { onEditClick: (drink: Drink) => void }) {
               )}
             </div>
           )})}
+          {visibleCount < sessions.length && (
+            <button className="load-more-btn" onClick={() => setVisibleCount(prev => prev + 10)}>
+              Show More ({sessions.length - visibleCount} remaining)
+            </button>
+          )}
         </div>
       )}
 
