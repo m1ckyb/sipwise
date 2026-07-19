@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import NavBar from './components/NavBar';
 import type { View } from './components/NavBar';
 import Dashboard from './components/Dashboard';
-import History from './components/History';
-import ProfileSettings from './components/ProfileSettings';
-import DrinkLogger from './components/DrinkLogger';
 import ReloadPrompt from './components/ReloadPrompt';
 import { useAppContext } from './context/AppContext';
 import type { Drink } from './utils/bac';
+
+const History = lazy(() => import('./components/History'));
+const ProfileSettings = lazy(() => import('./components/ProfileSettings'));
+const DrinkLogger = lazy(() => import('./components/DrinkLogger'));
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -42,18 +43,19 @@ function App() {
       </div>
 
       <main>
-        {currentView === 'dashboard' && (
-          <Dashboard onAddClick={() => openLogger()} />
-        )}
-        {currentView === 'history' && <History onEditClick={openLogger} />}
-        {currentView === 'profile' && <ProfileSettings />}
+        <Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center', opacity: 0.7 }}>Loading view...</div>}>
+          {currentView === 'dashboard' && (
+            <Dashboard onAddClick={() => openLogger()} />
+          )}
+          {currentView === 'history' && <History onEditClick={openLogger} />}
+          {currentView === 'profile' && <ProfileSettings />}
+          <DrinkLogger
+            isOpen={isLoggerOpen}
+            onClose={closeLogger}
+            editDrink={editingDrink}
+          />
+        </Suspense>
       </main>
-
-      <DrinkLogger
-        isOpen={isLoggerOpen}
-        onClose={closeLogger}
-        editDrink={editingDrink}
-      />
 
       <ReloadPrompt />
 

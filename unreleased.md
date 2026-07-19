@@ -7,9 +7,10 @@
 - **5-Second Fetch Timeout Circuit Breaker**: Configured global `AbortController` 5s timeout in Supabase client (`src/utils/supabase.ts`).
 - **React UI Error Boundary**: Created `<ErrorBoundary>` fallback wrapper to catch uncaught component rendering exceptions.
 - **Lazy Loaded Sub-Panels**: Implemented `React.lazy()` and `<Suspense>` code splitting for `AuthPanel`, `PushNotificationsPanel`, and `DataManagerPanel`.
-- **PR Preview & Staging CI Workflow (`.github/workflows/pr-preview.yml`)**: Added automated staging preview check, lint, test, build verification, and artifact generation on pull requests.
-- **Post-Deployment Health Check & Rollback Verification (`.github/workflows/deploy.yml`)**: Added HTTP API ping verification step after Edge Function deployment.
-- **PWA BackgroundSync Handler**: Added `sync` event handler in service worker (`src/sw.ts`) for background sync support.
+- **Absorption Model Selector UI**: Added UI dropdown in `MetabolismPanel` to select between Instant Widmark and 30-minute GI Physiological Absorption Ramp.
+- **Security Meta Headers (`index.html`)**: Added `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin` security headers.
+- **Structured Telemetry Logger (`src/utils/logger.ts`)**: Added structured JSON logging utility with unit tests (`src/utils/logger.test.ts`).
+- **Full Route Dynamic Lazy Loading (`App.tsx`)**: Implemented `React.lazy()` route splitting for `History`, `ProfileSettings`, `DrinkLogger`, and modal sub-panels (main bundle reduced to 202 kB).
 
 ### Changed
 

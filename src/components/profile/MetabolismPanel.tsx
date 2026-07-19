@@ -44,6 +44,26 @@ function MetabolismPanel() {
                 Adjust if you know you metabolize faster or slower.
               </p>
             </div>
+
+            <div className="form-group" style={{ marginTop: '1rem' }}>
+              <label htmlFor="absorption-model-select">Absorption Model</label>
+              <select
+                id="absorption-model-select"
+                value={profile.absorptionModel || 'instant'}
+                onChange={(e) => {
+                  setProfile({
+                    ...profile,
+                    absorptionModel: e.target.value as 'instant' | 'physiological'
+                  });
+                }}
+              >
+                <option value="instant">Instant Absorption (Standard Widmark)</option>
+                <option value="physiological">Physiological GI Ramp (30-min Absorption Lag)</option>
+              </select>
+              <p className="help-text">
+                Physiological model simulates 30-minute gastrointestinal tract alcohol absorption.
+              </p>
+            </div>
           </div>
         </div>
       </div>
