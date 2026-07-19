@@ -1,0 +1,26 @@
+# Gatus Monitoring Configuration for SipWise
+# https://github.com/TwiN/gatus
+
+endpoints:
+  - name: SipWise API Edge Function
+    group: sipwise-production
+    url: "https://YOUR_SUPABASE_PROJECT_ID.supabase.co/functions/v1/api"
+    method: OPTIONS
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200 || [STATUS] == 401"
+      - "[RESPONSE_TIME] < 2000"
+    alerts:
+      - type: discord
+        enabled: true
+        failure-threshold: 2
+        success-threshold: 2
+
+  - name: SipWise Frontend CDN
+    group: sipwise-production
+    url: "https://m1ckyb.github.io/sipwise/"
+    method: GET
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY] == *SipWise*"
