@@ -8,8 +8,10 @@ export interface LogPayload {
   context?: Record<string, unknown>;
 }
 
+import { supabase } from './supabase';
+
 class Logger {
-  private log(level: 'info' | 'warn' | 'error', message: string, context?: Record<string, unknown>) {
+  private log(level: 'info' | 'warn' | 'error', message: string, context?: Record<string, unknown>, stackTrace?: string) {
     const payload: LogPayload = {
       message,
       level,
@@ -19,6 +21,17 @@ class Logger {
 
     if (level === 'error') {
       console.error(JSON.stringify(payload));
+      // Asynchronously log error stack trace to Supabase database APM table
+      try {
+        supabase.from('error_logs').insert({
+          error_message: message,
+          stack_trace: stackTrace || (context?.stack as string) || null,
+          source: 'frontend',
+          context: context || null
+        }).then();
+      } catch {
+        // Ignore logging failures to prevent cascading errors
+      }
     } else if (level === 'warn') {
       console.warn(JSON.stringify(payload));
     } else {
@@ -34,8 +47,8 @@ class Logger {
     this.log('warn', message, context);
   }
 
-  public error(message: string, context?: Record<string, unknown>) {
-    this.log('error', message, context);
+  public error(message: string, context?: Record<string, unknown>, stackTrace?: string) {
+    this.log('error', message, context, stackTrace);
   }
 }
 

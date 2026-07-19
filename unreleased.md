@@ -9,8 +9,8 @@
 - **Lazy Loaded Sub-Panels**: Implemented `React.lazy()` and `<Suspense>` code splitting for `AuthPanel`, `PushNotificationsPanel`, and `DataManagerPanel`.
 - **Absorption Model Selector UI**: Added UI dropdown in `MetabolismPanel` to select between Instant Widmark and 30-minute GI Physiological Absorption Ramp.
 - **Security Meta Headers (`index.html`)**: Added `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin` security headers.
-- **Structured Telemetry Logger (`src/utils/logger.ts`)**: Added structured JSON logging utility with unit tests (`src/utils/logger.test.ts`).
-- **Full Route Dynamic Lazy Loading (`App.tsx`)**: Implemented `React.lazy()` route splitting for `History`, `ProfileSettings`, `DrinkLogger`, and modal sub-panels (main bundle reduced to 202 kB).
+- **In-Database Rate Limiter (`check_rate_limit`)**: Added PostgreSQL rate limiting table (`public.rate_limits`) and RPC function enforcing 60 requests/minute per key/IP in `/api` Edge Function.
+- **In-Database Error Logging APM (`public.error_logs`)**: Added `error_logs` table in Supabase and connected `logger.error()` and `<ErrorBoundary>` stack traces to persist UI/API crashes.
 
 ### Changed
 

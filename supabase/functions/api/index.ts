@@ -65,6 +65,21 @@ serve(async (req) => {
 
     const userId = apiKeyData.user_id;
 
+    // In-database Rate Limiter check (60 req/min per key/user)
+    const rateLimitKey = `rate_limit:${userId}`;
+    const { data: rateLimitResult } = await supabase.rpc('check_rate_limit', {
+      p_key: rateLimitKey,
+      p_max_requests: 60,
+      p_window_seconds: 60
+    });
+
+    if (rateLimitResult && rateLimitResult.allowed === false) {
+      return new Response(
+        JSON.stringify({ error: 'Too many requests. Rate limit exceeded (60 req/min).' }), 
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 }
+      );
+    }
+
     // 2. Fetch user data
     const { data: userData, error: userError } = await supabase
       .from('user_data')

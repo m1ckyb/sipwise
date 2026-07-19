@@ -1,4 +1,5 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
+import logger from '../utils/logger';
 
 interface Props {
   children: ReactNode;
@@ -20,7 +21,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[SipWise ErrorBoundary] Uncaught UI error:', error, errorInfo);
+    logger.error(`[UI Crash] ${error.message}`, { componentStack: errorInfo.componentStack }, error.stack);
   }
 
   public handleReset = () => {
