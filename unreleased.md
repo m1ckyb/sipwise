@@ -11,6 +11,9 @@
 - **Input Boundary Protection & Division-by-Zero Guard (`F-01`)**: Added boundary guards in `calculateWidmarkR` and `BodyMetricsForm` to prevent invalid profile values (`0` or `NaN`) from breaking BAC calculations.
 - **Strict Data Validation on Restore (`Q-02`)**: Updated `validateRestoreData` in `DataManagerPanel` with `Number.isFinite()` to prevent corrupted timestamps, volumes, or ABVs during JSON file import.
 - **Legal & Medical Disclaimer (`Q-01`)**: Added safety disclaimer to Dashboard clarifying that BAC figures are mathematical estimations for informational purposes only.
+- **Dynamic CORS Header Handling (`S-04`)**: Replaced static `*` wildcard CORS header in `api` Edge Function with dynamic origin validation supporting `ALLOWED_ORIGINS` and `Vary: Origin`.
+- **Vendor Code Splitting & Bundle Optimization (`F-02`)**: Configured `manualChunks` in `vite.config.ts` to separate `recharts` and `@supabase/supabase-js` into cached vendor chunks, reducing main bundle size to 234 kB with 0 warnings.
+- **Accessibility Enhancements (`F-03`)**: Added explicit `aria-label` attributes to action buttons in History and component views.
 - **Dynamic VAPID Email (`D-02`)**: Replaced hardcoded fallback email with configurable `VAPID_CONTACT_EMAIL` environment variable.
 - **Cloud sync data loss between devices**: Sync now uses a multi-device merge strategy instead of blind overwrite. `pushToCloud` fetches existing cloud data, merges drinks (union by id) and presets (union by name), then upserts the combined result. After a successful merge push, local state is updated with any cloud-only drinks so they appear immediately. The auto-push handler also pulls from cloud after pushing, ensuring full convergence across devices.
 - Fixed double pull-from-cloud on login (two competing effects could race and cause stale data)

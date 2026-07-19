@@ -162,10 +162,10 @@ function History({ onEditClick }: { onEditClick: (drink: Drink) => void }) {
                           <span className="details">{drink.volume}ml • {drink.abv}% • {drink.calories !== undefined ? drink.calories : estimateCalories(drink.volume, drink.abv)} kcal</span>
                         </div>
                         <div className="drink-actions">
-                          <button className="edit-btn" onClick={() => onEditClick(drink)}>
+                          <button className="edit-btn" onClick={() => onEditClick(drink)} aria-label={`Edit ${drink.name || 'drink'}`}>
                             ✎
                           </button>
-                          <button className="delete-btn" onClick={() => removeDrink(drink.id)}>
+                          <button className="delete-btn" onClick={() => removeDrink(drink.id)} aria-label={`Delete ${drink.name || 'drink'}`}>
                             &times;
                           </button>
                         </div>
