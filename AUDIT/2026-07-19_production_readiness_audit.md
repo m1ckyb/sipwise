@@ -230,62 +230,41 @@ build: {
 
 | Category | Score /10 | Notes |
 | :--- | :---: | :--- |
-| **Security** | **10/10** | Bearer auth on cron Edge Function, SHA-256 API key hashing, dynamic CORS headers. |
-| **Backend Architecture** | **10/10** | Relational `drinks` schema, atomic stored procedures (`add_drink_atomic`), idempotency key deduplication. |
-| **Frontend** | **10/10** | React Error Boundary, `<Suspense>` lazy-loaded sub-panels, PWA BackgroundSync API, vendor manualChunks splitting (234kB main bundle). |
-| **Database** | **10/10** | Managed versioned migrations (`supabase/migrations/`), relational `drinks` table, indexed foreign keys & key hashes. |
+| **Security** | **9/10** | Bearer auth on cron Edge Function, SHA-256 API key hashing, dynamic CORS headers. |
+| **Backend Architecture** | **9/10** | Relational `drinks` schema, atomic stored procedures (`add_drink_atomic`), idempotency key deduplication. |
+| **Frontend** | **9.5/10** | React Error Boundary, `<Suspense>` lazy-loaded sub-panels, PWA BackgroundSync API, vendor manualChunks splitting (234kB main bundle). |
+| **Database** | **9/10** | Managed versioned migrations (`supabase/migrations/`), relational `drinks` table, indexed foreign keys & key hashes. |
 | **Infrastructure** | **10/10** | Staging PR preview workflow (`pr-preview.yml`), post-deploy health check & alert verification (`deploy.yml`). Fully cloud-hosted serverless architecture. |
-| **Reliability** | **10/10** | Physiological absorption model (`absorptionModel: 'physiological'`), 5s `AbortController` fetch timeout circuit breaker, strict input validation. |
-| **Scalability** | **10/10** | Vendor manualChunks bundle optimization, database indexes, idempotency deduplication, async push alerts. |
-| **Testing** | **10/10** | Unit test suite passing 100% (16/16 tests) with automated CI enforcement in GitHub Actions. |
-| **Observability** | **10/10** | Edge function error logging, toast notification user feedback, and post-deploy health monitoring. |
+| **Reliability** | **9.5/10** | Physiological absorption model (`absorptionModel: 'physiological'`), 5s `AbortController` fetch timeout circuit breaker, strict input validation. |
+| **Scalability** | **9/10** | Vendor manualChunks bundle optimization, database indexes, idempotency deduplication, async push alerts. |
+| **Testing** | **9/10** | Unit test suite passing 100% (16/16 tests) with automated CI enforcement in GitHub Actions. |
+| **Observability** | **7.5/10** | Edge function error logging, toast notification user feedback, and post-deploy health monitoring. |
 | **AI Safety** | N/A | No AI/LLM integrations present in current codebase. |
 
 ---
 
-## 10/10 PRODUCTION READINESS ROADMAP & RECOMMENDATIONS
+## PRODUCTION READINESS REMEDIATION & ENTERPRISE ROADMAP
 
-All engineering enhancements required for a perfect **10/10 score** across all categories have been implemented:
+### ✅ COMPLETED CODE & ARCHITECTURE REMEDIATIONS
 
-### 🛡️ 1. Security (10/10) ✅ RESOLVED
-- **Cron Authorization:** ✅ **IMPLEMENTED** — Enforced bearer token and `CRON_SECRET` validation on Edge Functions.
-- **API Key Hashing:** ✅ **IMPLEMENTED** — Migrated `api_keys` schema to SHA-256 `key_hash` storage and Web Crypto API lookup.
-- **Dynamic CORS Headers:** ✅ **IMPLEMENTED** — Dynamic origin matching (`getCorsHeaders()`) with `ALLOWED_ORIGINS` support and `Vary: Origin`.
+- **Infrastructure (10/10):** Created `.github/workflows/pr-preview.yml` for pull request staging checks, lint/test validation, build verification, and artifact creation. Added post-deployment health check step in `.github/workflows/deploy.yml` that pings API endpoints and fails fast on errors.
+- **Security (9/10):** Enforced bearer token and `CRON_SECRET` validation on Edge Functions. Migrated `api_keys` schema to SHA-256 `key_hash` storage and Web Crypto API lookup. Added dynamic CORS origin matching (`getCorsHeaders()`).
+- **Backend Architecture (9/10):** Created relational `drinks` table (`supabase/migrations/20260719182000_init_relational_schema.sql` & `update_db.sql`). Created `public.add_drink_atomic` stored procedure. Implemented `x-idempotency-key` header deduplication check on `/api` POST endpoints.
+- **Frontend (9.5/10):** Added `sync` event handler in Service Worker (`src/sw.ts`) for BackgroundSync API. Created `<ErrorBoundary>` component and wrapped application in `src/main.tsx`. Implemented `React.lazy()` and `<Suspense>` for `AuthPanel`, `PushNotificationsPanel`, and `DataManagerPanel` in `ProfileSettings.tsx`.
+- **Database (9/10):** Added formal Supabase CLI versioned migration file (`supabase/migrations/20260719182000_init_relational_schema.sql`). Added performance indexes on `drinks(user_id, timestamp desc)`, `push_subscriptions(user_id)`, and `api_keys(key_hash)`.
+- **Reliability (9.5/10):** Implemented 30-minute GI tract absorption ramp option (`absorptionModel: 'physiological'`) in `src/utils/bac.ts`. Configured global `AbortController` 5s fetch timeout in `src/utils/supabase.ts`.
+- **Scalability (9/10):** Configured `manualChunks` in `vite.config.ts` to separate Recharts and Supabase JS into cached vendor chunks. Prevented duplicate drink logs on unstable network retries via `idempotency_keys` table.
+- **Testing (9/10):** Integrated `npm run lint` and `npm test -- --run` quality gates into GitHub Actions CI workflows. Unit test suite passing 100% (16/16 tests passing).
+- **Observability (7.5/10):** Automated HTTP health check verification in deployment pipeline. Interactive toast notification system for instant user feedback.
 
-### 🏗️ 2. Backend Architecture (10/10) ✅ RESOLVED
-- **Normalized `drinks` Table Schema:** ✅ **IMPLEMENTED** — Created relational `drinks` table (`supabase/migrations/20260719182000_init_relational_schema.sql` & `update_db.sql`).
-- **Atomic Database RPC Transactions:** ✅ **IMPLEMENTED** — Created `public.add_drink_atomic` stored procedure for server-side atomic execution.
-- **Idempotency Keys:** ✅ **IMPLEMENTED** — Implemented `x-idempotency-key` header deduplication check on `/api` POST endpoints.
+---
 
-### 🎨 3. Frontend (10/10) ✅ RESOLVED
-- **Offline-First PWA Background Sync:** ✅ **IMPLEMENTED** — Added `sync` event handler in Service Worker (`src/sw.ts`) for BackgroundSync API.
-- **React Component Error Boundaries:** ✅ **IMPLEMENTED** — Created `<ErrorBoundary>` component and wrapped application in `src/main.tsx`.
-- **Component Lazy Loading:** ✅ **IMPLEMENTED** — Implemented `React.lazy()` and `<Suspense>` for `AuthPanel`, `PushNotificationsPanel`, and `DataManagerPanel` in `ProfileSettings.tsx`.
+### 📌 FUTURE ENTERPRISE / THIRD-PARTY ENHANCEMENTS (FOR PERFECT 10/10)
 
-### 🗄️ 4. Database (10/10) ✅ RESOLVED
-- **Managed Versioned Migrations:** ✅ **IMPLEMENTED** — Added formal Supabase CLI versioned migration file (`supabase/migrations/20260719182000_init_relational_schema.sql`).
-- **Foreign Key & Key Hash Indexes:** ✅ **IMPLEMENTED** — Added performance indexes on `drinks(user_id, timestamp desc)`, `push_subscriptions(user_id)`, and `api_keys(key_hash)`.
-
-### 🚀 5. Infrastructure (10/10) ✅ RESOLVED
-- **Staging / PR Preview Environments:** ✅ **IMPLEMENTED** — Created `.github/workflows/pr-preview.yml` for pull request staging checks, lint/test validation, build verification, and artifact creation.
-- **Automated Health Checks & Rollbacks:** ✅ **IMPLEMENTED** — Added post-deployment health check step in `.github/workflows/deploy.yml` that pings API endpoints and fails fast on errors.
-- **Cloud-Native Architecture:** Fully cloud-hosted on GitHub Pages CDN & Supabase Serverless Edge Functions.
-
-### 🩺 6. Reliability (10/10) ✅ RESOLVED
-- **Physiological Absorption Lag Engine:** ✅ **IMPLEMENTED** — Implemented 30-minute GI tract absorption ramp option (`absorptionModel: 'physiological'`) in `src/utils/bac.ts`.
-- **Network Timeouts & Circuit Breakers:** ✅ **IMPLEMENTED** — Configured global `AbortController` 5s fetch timeout in `src/utils/supabase.ts`.
-
-### 📈 7. Scalability (10/10) ✅ RESOLVED
-- **Vendor Code Splitting:** ✅ **IMPLEMENTED** — Configured `manualChunks` in `vite.config.ts` to separate Recharts and Supabase JS into cached vendor chunks.
-- **Idempotency Deduplication:** ✅ **IMPLEMENTED** — Prevented duplicate drink logs on unstable network retries via `idempotency_keys` table.
-
-### 🧪 8. Testing (10/10) ✅ RESOLVED
-- **Automated CI Enforcement:** ✅ **IMPLEMENTED** — Integrated `npm run lint` and `npm test -- --run` quality gates into GitHub Actions CI workflows.
-- **Unit Test Coverage:** ✅ **IMPLEMENTED** — Unit test suite passing 100% (16/16 tests passing).
-
-### 👁️ 9. Observability (10/10) ✅ RESOLVED
-- **Post-Deploy Health Checks:** ✅ **IMPLEMENTED** — Automated HTTP health check verification in deployment pipeline.
-- **User Notification System:** ✅ **IMPLEMENTED** — Interactive toast notification system for instant user feedback.
+1. **Security:** Third-party Redis Rate Limiter (e.g. Upstash Redis on Edge Functions for >60 req/min) and Supabase MFA/2FA enforcement.
+2. **Observability:** Centralized Sentry SDK integration (`@sentry/react`, `@sentry/deno`) for APM stack trace aggregation and BetterStack uptime alerting.
+3. **Testing:** Full Playwright E2E automated browser test suite for multi-browser regression testing.
+4. **Database:** Supabase Pro Point-in-Time Recovery (PITR) setup and automated `pgTAP` RLS SQL tests.
 
 ---
 
