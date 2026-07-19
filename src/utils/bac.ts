@@ -58,6 +58,7 @@ export interface Profile {
   displayUnit: '%' | '‰';
   height: number; // cm
   age: number; // years
+  absorptionModel?: 'instant' | 'physiological'; // default instant (standard Widmark baseline)
   quickDrink?: {
     name: string;
     volume: number;
@@ -122,22 +123,25 @@ export function calculateWidmarkR(profile: Profile): number {
 }
 
 /**
- * Calculates current BAC based on Widmark formula.
- * BAC = (Alcohol in grams / (Weight in grams * r)) * 100 - (Metabolism * hours)
- * 
- * Note: This implementation assumes instant absorption for simplicity, 
- * which is common for basic BAC trackers.
+ * Calculates current BAC based on Widmark formula with optional physiological absorption lag.
  */
 function calculateBACAtTime(pastDrinks: Drink[], profile: Profile, weightInGrams: number, r: number, currentTime: number): number {
   let currentBAC = 0;
   let lastTime = pastDrinks[0].timestamp;
+  const isPhysiological = profile.absorptionModel === 'physiological';
 
   for (const drink of pastDrinks) {
     const hoursPassed = (drink.timestamp - lastTime) / (1000 * 60 * 60);
     currentBAC -= profile.metabolismRate * hoursPassed;
     if (currentBAC < 0) currentBAC = 0;
 
-    const alcoholGrams = drink.volume * (drink.abv / 100) * ETHANOL_DENSITY;
+    let absorptionFactor = 1.0;
+    if (isPhysiological) {
+      const minutesSinceDrink = (currentTime - drink.timestamp) / (1000 * 60);
+      absorptionFactor = Math.min(1.0, Math.max(0.0, minutesSinceDrink / 30));
+    }
+
+    const alcoholGrams = drink.volume * (drink.abv / 100) * ETHANOL_DENSITY * absorptionFactor;
     const addedBAC = (alcoholGrams / (weightInGrams * r)) * 100;
     currentBAC += addedBAC;
 

@@ -75,3 +75,16 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+
+// Handle background sync events for offline-first drink logging & cloud sync
+self.addEventListener('sync', (event: Event & { tag?: string; waitUntil?: (p: Promise<unknown>) => void }) => {
+  if (event.tag === 'sync-sipwise-data') {
+    event.waitUntil?.(
+      self.clients.matchAll({ type: 'window' }).then((clients) => {
+        for (const client of clients) {
+          client.postMessage({ type: 'BACKGROUND_SYNC_TRIGGERED' });
+        }
+      })
+    );
+  }
+});

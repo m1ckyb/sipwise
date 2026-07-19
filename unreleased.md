@@ -1,6 +1,13 @@
 ### Added
 - Comprehensive Production Readiness Audit report (`AUDIT/2026-07-19_production_readiness_audit.md`)
 - 10/10 Production Readiness Roadmap & Recommendations section in the audit report
+- **Managed Versioned Migration (`supabase/migrations/`)**: Added `20260719182000_init_relational_schema.sql` for relational `drinks` table, `idempotency_keys` deduplication, and atomic stored procedures.
+- **Idempotency Key Deduplication (`x-idempotency-key`)**: Added header deduplication in `/api` Edge Function for network retries.
+- **Physiological GI Absorption Lag Model**: Added optional 30-minute absorption ramp option to Widmark calculations (`absorptionModel: 'physiological'`).
+- **5-Second Fetch Timeout Circuit Breaker**: Configured global `AbortController` 5s timeout in Supabase client (`src/utils/supabase.ts`).
+- **React UI Error Boundary**: Created `<ErrorBoundary>` fallback wrapper to catch uncaught component rendering exceptions.
+- **Lazy Loaded Sub-Panels**: Implemented `React.lazy()` and `<Suspense>` code splitting for `AuthPanel`, `PushNotificationsPanel`, and `DataManagerPanel`.
+- **PWA BackgroundSync Handler**: Added `sync` event handler in service worker (`src/sw.ts`) for background sync support.
 
 ### Changed
 

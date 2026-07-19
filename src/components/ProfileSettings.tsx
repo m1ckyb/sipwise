@@ -1,11 +1,13 @@
+import { lazy, Suspense } from 'react';
 import { useAppContext } from '../context/AppContext';
 import pkg from '../../package.json';
 import BodyMetricsForm from './profile/BodyMetricsForm';
 import MetabolismPanel from './profile/MetabolismPanel';
 import PresetManager from './profile/PresetManager';
-import AuthPanel from './profile/AuthPanel';
-import PushNotificationsPanel from './profile/PushNotificationsPanel';
-import DataManagerPanel from './profile/DataManagerPanel';
+
+const AuthPanel = lazy(() => import('./profile/AuthPanel'));
+const PushNotificationsPanel = lazy(() => import('./profile/PushNotificationsPanel'));
+const DataManagerPanel = lazy(() => import('./profile/DataManagerPanel'));
 
 function ProfileSettings() {
   const { storageWarning } = useAppContext();
@@ -27,9 +29,11 @@ function ProfileSettings() {
         <BodyMetricsForm />
         <MetabolismPanel />
         <PresetManager />
-        <AuthPanel />
-        <PushNotificationsPanel />
-        <DataManagerPanel />
+        <Suspense fallback={<div className="panel-loading" style={{ padding: '1rem', opacity: 0.6 }}>Loading settings...</div>}>
+          <AuthPanel />
+          <PushNotificationsPanel />
+          <DataManagerPanel />
+        </Suspense>
       </div>
 
       <div className="version-info" style={{ textAlign: 'center', marginTop: 'var(--spacing-lg)', opacity: 0.5, fontSize: '0.8rem' }}>

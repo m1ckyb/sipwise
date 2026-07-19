@@ -88,6 +88,24 @@ describe('BAC Calculation Utility Tests', () => {
       expect(bac).toBeCloseTo(0.034, 3);
     });
 
+    it('should calculate 0 BAC right after a drink when using physiological absorption ramp', () => {
+      const now = Date.now();
+      const drinks: Drink[] = [
+        { id: '1', timestamp: now, volume: 500, abv: 5 }
+      ];
+      const physProfile = { ...maleProfile, absorptionModel: 'physiological' as const };
+      const bacRightNow = calculateBAC(drinks, physProfile, now);
+      expect(bacRightNow).toBe(0);
+
+      // After 15 mins (50% absorbed)
+      const bac15m = calculateBAC(drinks, physProfile, now + 15 * 60000);
+      expect(bac15m).toBeGreaterThan(0);
+
+      // After 30 mins (100% absorbed)
+      const bac30m = calculateBAC(drinks, physProfile, now + 30 * 60000);
+      expect(bac30m).toBeGreaterThan(bac15m);
+    });
+
     it('should metabolize BAC over time', () => {
       const now = Date.now();
       const drinks: Drink[] = [

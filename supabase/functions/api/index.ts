@@ -85,9 +85,26 @@ serve(async (req) => {
     const now = Date.now();
 
     // ----------------------------------------------------
-    // POST REQUEST: Add a drink
+    // POST REQUEST: Add a drink (with Idempotency Key support)
     // ----------------------------------------------------
     if (req.method === 'POST') {
+      const idempotencyKey = req.headers.get('x-idempotency-key');
+      if (idempotencyKey) {
+        const { data: existingKey } = await supabase
+          .from('idempotency_keys')
+          .select('response_body')
+          .eq('key', idempotencyKey)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (existingKey?.response_body) {
+          return new Response(
+            JSON.stringify(existingKey.response_body),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
       let body;
       try {
         body = await req.json();
