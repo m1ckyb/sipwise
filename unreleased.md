@@ -13,6 +13,12 @@
 - **Patch Release Guide (`make-patch-release.md`)**: Created step-by-step release procedure guide covering both local terminal (0 GitHub Actions minutes) and automated CI/CD pipeline deployments.
 
 ### Changed
+- Bumped `typescript-eslint` from `8.61.1` to `8.63.0` (#25)
+- Bumped `vitest` from `4.1.9` to `4.1.10` (#24)
+- Bumped `vite` from `8.0.16` to `8.1.5` (#23)
+- Bumped `recharts` from `3.9.0` to `3.9.2` (#22)
+- Bumped `@supabase/supabase-js` from `2.108.2` to `2.110.2` (#21)
+- Bumped `supabase/setup-cli` GitHub Action from `v2` to `v3` (#20)
 
 ### Fixed
 - **Secured `check-alerts` Edge Function (`S-01`)**: Implemented authorization checks (`CRON_SECRET` & `SUPABASE_SERVICE_ROLE_KEY` bearer verification) to prevent unauthorized execution.
