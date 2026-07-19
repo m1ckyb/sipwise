@@ -96,24 +96,27 @@ export interface Session {
 }
 
 export function calculateWidmarkR(profile: Profile): number {
-  const { weight, height, age, gender } = profile;
+  const safeWeight = Number.isFinite(profile.weight) && profile.weight > 0 ? profile.weight : 75;
+  const safeHeight = Number.isFinite(profile.height) && profile.height > 0 ? profile.height : 175;
+  const safeAge = Number.isFinite(profile.age) && profile.age > 0 ? profile.age : 30;
+  const gender = profile.gender === 'female' ? 'female' : 'male';
 
   if (gender === 'male') {
     // Watson Formula (Male)
     const tbw = WATSON_COEFF_MALE_TBW.intercept + 
-                (WATSON_COEFF_MALE_TBW.age * age) + 
-                (WATSON_COEFF_MALE_TBW.height * height) + 
-                (WATSON_COEFF_MALE_TBW.weight * weight);
-    const r = tbw / (weight * 0.8);
-    // Sanity check: r for men is usually between 0.60 and 0.80
+                (WATSON_COEFF_MALE_TBW.age * safeAge) + 
+                (WATSON_COEFF_MALE_TBW.height * safeHeight) + 
+                (WATSON_COEFF_MALE_TBW.weight * safeWeight);
+    const r = tbw / (safeWeight * 0.8);
+    // Sanity check: r for men is usually between 0.50 and 0.90
     return Math.min(Math.max(r, R_MIN_MALE), R_MAX_MALE);
   } else {
     // Watson Formula (Female)
     const tbw = WATSON_COEFF_FEMALE_TBW.intercept + 
-                (WATSON_COEFF_FEMALE_TBW.height * height) + 
-                (WATSON_COEFF_FEMALE_TBW.weight * weight);
-    const r = tbw / (weight * 0.8);
-    // Sanity check: r for women is usually between 0.45 and 0.70
+                (WATSON_COEFF_FEMALE_TBW.height * safeHeight) + 
+                (WATSON_COEFF_FEMALE_TBW.weight * safeWeight);
+    const r = tbw / (safeWeight * 0.8);
+    // Sanity check: r for women is usually between 0.40 and 0.80
     return Math.min(Math.max(r, R_MIN_FEMALE), R_MAX_FEMALE);
   }
 }

@@ -9,10 +9,15 @@ create table if not exists public.api_keys (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users(id) on delete cascade not null,
   name text not null,
-  key text unique not null,
+  key_hash text unique not null,
+  key_prefix text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   last_used_at timestamp with time zone
 );
+
+-- Performance & Security Indexes
+create index if not exists idx_api_keys_user_id on public.api_keys(user_id);
+create index if not exists idx_api_keys_key_hash on public.api_keys(key_hash);
 
 -- Enable Row Level Security
 alter table public.api_keys enable row level security;

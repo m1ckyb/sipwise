@@ -224,8 +224,12 @@ function Dashboard({ onAddClick }: { onAddClick: () => void }) {
           </button>
         )}
       </div>
+
+      <div className="legal-disclaimer" style={{ marginTop: 'var(--spacing-lg)', textAlign: 'center', opacity: 0.7, fontSize: '0.75rem', lineHeight: '1.4' }}>
+        ⚠️ <strong>Disclaimer:</strong> BAC figures are mathematical estimations for informational purposes only. Physiological absorption varies by individual. Never use this app to determine your fitness to drive.
+      </div>
     </div>
   );
-};
+}
 
 export default Dashboard;

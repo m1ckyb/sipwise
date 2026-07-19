@@ -183,12 +183,13 @@ function DataManagerPanel() {
     const d = data as Record<string, unknown>;
 
     if (d.profile !== undefined) {
+      if (typeof d.profile !== 'object' || d.profile === null) return false;
       const p = d.profile as Record<string, unknown>;
-      if (typeof p.weight !== 'number' || p.weight < 20 || p.weight > 400) return false;
+      if (!Number.isFinite(p.weight) || (p.weight as number) < 20 || (p.weight as number) > 400) return false;
       if (p.gender !== 'male' && p.gender !== 'female') return false;
-      if (typeof p.height !== 'number' || p.height < 50 || p.height > 300) return false;
-      if (typeof p.age !== 'number' || p.age < 1 || p.age > 130) return false;
-      if (typeof p.metabolismRate !== 'number' || p.metabolismRate < 0.001 || p.metabolismRate > 0.5) return false;
+      if (!Number.isFinite(p.height) || (p.height as number) < 50 || (p.height as number) > 300) return false;
+      if (!Number.isFinite(p.age) || (p.age as number) < 1 || (p.age as number) > 130) return false;
+      if (!Number.isFinite(p.metabolismRate) || (p.metabolismRate as number) < 0.001 || (p.metabolismRate as number) > 0.5) return false;
     }
 
     if (d.drinks !== undefined) {
@@ -197,15 +198,21 @@ function DataManagerPanel() {
       for (const drink of d.drinks) {
         if (typeof drink !== 'object' || drink === null) return false;
         const dr = drink as Record<string, unknown>;
-        if (typeof dr.volume !== 'number' || dr.volume < 0 || dr.volume > 5000) return false;
-        if (typeof dr.abv !== 'number' || dr.abv < 0 || dr.abv > 100) return false;
-        if (typeof dr.timestamp !== 'number') return false;
+        if (!Number.isFinite(dr.volume) || (dr.volume as number) < 0 || (dr.volume as number) > 5000) return false;
+        if (!Number.isFinite(dr.abv) || (dr.abv as number) < 0 || (dr.abv as number) > 100) return false;
+        if (!Number.isFinite(dr.timestamp) || (dr.timestamp as number) <= 0) return false;
       }
     }
 
     if (d.presets !== undefined) {
       if (!Array.isArray(d.presets)) return false;
       if (d.presets.length > 100) return false;
+      for (const preset of d.presets) {
+        if (typeof preset !== 'object' || preset === null) return false;
+        const pr = preset as Record<string, unknown>;
+        if (!Number.isFinite(pr.volume) || (pr.volume as number) < 0 || (pr.volume as number) > 5000) return false;
+        if (!Number.isFinite(pr.abv) || (pr.abv as number) < 0 || (pr.abv as number) > 100) return false;
+      }
     }
 
     return true;

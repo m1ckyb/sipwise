@@ -30,11 +30,17 @@ serve(async (req) => {
       );
     }
 
-    // 1. Verify API key
+    // Hash the incoming key with SHA-256 for secure lookup
+    const encoder = new TextEncoder();
+    const data = encoder.encode(apiKey);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const keyHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // 1. Verify API key via key_hash (or fallback to key for backwards compatibility)
     const { data: apiKeyData, error: apiKeyError } = await supabase
       .from('api_keys')
-      .select('user_id')
-      .eq('key', apiKey)
+      .select('id, user_id')
+      .or(`key_hash.eq.${keyHash},key.eq.${apiKey}`)
       .single();
 
     if (apiKeyError || !apiKeyData) {
@@ -43,6 +49,9 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       );
     }
+
+    // Update last_used_at asynchronously
+    supabase.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', apiKeyData.id).then();
 
     const userId = apiKeyData.user_id;
 

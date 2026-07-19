@@ -5,18 +5,33 @@ import { calculateBAC } from "../_shared/bac.ts"
 
 const VAPID_PUBLIC_KEY = Deno.env.get('VITE_VAPID_PUBLIC_KEY') || Deno.env.get('VAPID_PUBLIC_KEY');
 const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
+const VAPID_CONTACT_EMAIL = Deno.env.get('VAPID_CONTACT_EMAIL') || 'mailto:support@sipwise.app';
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(
-    'mailto:admin@example.com',
+    VAPID_CONTACT_EMAIL,
     VAPID_PUBLIC_KEY,
     VAPID_PRIVATE_KEY
   );
 }
 
-serve(async () => {
-  // Prevent unauthorized access, assuming this is invoked by pg_cron or Supabase Scheduled Functions
-  // You might want to verify an auth header here in a real production environment.
+serve(async (req: Request) => {
+  // Prevent unauthorized access: check Cron Secret or Service Role authorization
+  const cronSecret = Deno.env.get('CRON_SECRET');
+  const authHeader = req.headers.get('authorization');
+  const customCronHeader = req.headers.get('x-cron-secret');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+  const isAuthorized =
+    (cronSecret && (customCronHeader === cronSecret || authHeader === `Bearer ${cronSecret}`)) ||
+    (serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`);
+
+  if (!isAuthorized) {
+    return new Response(JSON.stringify({ error: "Unauthorized access" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
   
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
     return new Response(JSON.stringify({ error: "VAPID keys not configured." }), { status: 500 });

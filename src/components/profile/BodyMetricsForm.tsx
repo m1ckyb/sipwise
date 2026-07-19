@@ -8,10 +8,17 @@ function BodyMetricsForm() {
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setProfile({
-      ...profile,
-      [name]: name === 'weight' || name === 'height' || name === 'age' ? Number(value) : value
-    });
+    if (name === 'weight' || name === 'height' || name === 'age') {
+      const numVal = Number(value);
+      if (!Number.isFinite(numVal) || numVal <= 0) return;
+      let clamped = numVal;
+      if (name === 'weight') clamped = Math.max(20, Math.min(400, numVal));
+      if (name === 'height') clamped = Math.max(50, Math.min(250, numVal));
+      if (name === 'age') clamped = Math.max(1, Math.min(120, numVal));
+      setProfile({ ...profile, [name]: clamped });
+    } else {
+      setProfile({ ...profile, [name]: value });
+    }
   };
 
   return (

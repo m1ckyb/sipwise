@@ -49,6 +49,9 @@ create table if not exists public.push_subscriptions (
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- Performance Index
+create index if not exists idx_push_subscriptions_user_id on public.push_subscriptions(user_id);
+
 -- Enable Row Level Security
 alter table public.push_subscriptions enable row level security;
 
