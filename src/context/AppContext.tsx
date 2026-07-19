@@ -82,6 +82,22 @@ function safeSetItem(key: string, value: string): void {
   }
 }
 
+/** Merge local and cloud drink arrays: union by id, local wins for matching ids */
+function mergeDrinkArrays(local: Drink[], cloud: Drink[]): Drink[] {
+  const map = new Map<string, Drink>();
+  for (const d of cloud) map.set(d.id, d);
+  for (const d of local) map.set(d.id, d);
+  return [...map.values()].sort((a, b) => a.timestamp - b.timestamp);
+}
+
+/** Merge local and cloud preset arrays: union by name, local wins for matching names */
+function mergePresetArrays(local: Omit<Drink, 'id' | 'timestamp'>[], cloud: Omit<Drink, 'id' | 'timestamp'>[]): Omit<Drink, 'id' | 'timestamp'>[] {
+  const map = new Map<string, Omit<Drink, 'id' | 'timestamp'>>();
+  for (const p of cloud) map.set(p.name ?? '', p);
+  for (const p of local) map.set(p.name ?? '', p);
+  return [...map.values()];
+}
+
 // Migration helper from alcoclone_* to sipwise_* localStorage keys
 const migrateLocalStorageKeys = () => {
   if (typeof window === 'undefined' || !window.localStorage) return;
@@ -187,17 +203,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     setIsSyncing(true);
     try {
+      const { data: existing, error: fetchError } = await supabase
+        .from('user_data')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+
+      const mergedDrinks = existing?.drinks
+        ? mergeDrinkArrays(drinksRef.current, existing.drinks)
+        : drinksRef.current;
+      const mergedPresets = existing?.presets
+        ? mergePresetArrays(presetsRef.current, existing.presets)
+        : presetsRef.current;
+
+      const merged = {
+        id: user.id,
+        profile: profileRef.current,
+        drinks: mergedDrinks,
+        presets: mergedPresets,
+        updated_at: new Date().toISOString(),
+      };
+
       const { error } = await supabase
         .from('user_data')
-        .upsert({
-          id: user.id,
-          profile: profileRef.current,
-          drinks: drinksRef.current,
-          presets: presetsRef.current,
-          updated_at: new Date().toISOString(),
-        });
+        .upsert(merged);
       
       if (!error) {
+        // Update local state with merged result so other devices' data appears immediately
+        if (mergedDrinks.length !== drinksRef.current.length) {
+          skipNextPushRef.current = true;
+          setDrinks(mergedDrinks);
+        }
+        if (mergedPresets.length !== presetsRef.current.length) {
+          skipNextPushRef.current = true;
+          setPresets(mergedPresets);
+        }
+
         const now = new Date().toLocaleString();
         setLastSynced(now);
         safeSetItem('sipwise_last_synced', now);
@@ -325,26 +368,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Pull from cloud on fresh login
+  // Pull from cloud on mount or fresh login — single effect to avoid races
   useEffect(() => {
-    if (pendingSyncRef.current && user) {
-      pendingSyncRef.current = false;
-      pullFromCloud();
-    }
+    if (!user || initialPullDone.current) return;
+    initialPullDone.current = true;
+    pendingSyncRef.current = false;
+    pullFromCloud();
   }, [user, pullFromCloud]);
 
-  // Pull from cloud on mount — prevents stale localStorage from overwriting cloud data
-  useEffect(() => {
-    if (user && !initialPullDone.current) {
-      initialPullDone.current = true;
-      pullFromCloud();
-    }
-  }, [user, pullFromCloud]);
-
-  // Auto-push on data changes only, not on user login
+  // Auto-push on data changes with pull-after-push for multi-device convergence
   const pushToCloudRef = useRef(pushToCloud);
+  const pullFromCloudRef = useRef(pullFromCloud);
   useEffect(() => {
     pushToCloudRef.current = pushToCloud;
+  });
+  useEffect(() => {
+    pullFromCloudRef.current = pullFromCloud;
   });
 
   useEffect(() => {
@@ -353,8 +392,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       skipNextPushRef.current = false;
       return;
     }
-    const timer = setTimeout(() => {
-      pushToCloudRef.current();
+    const timer = setTimeout(async () => {
+      try {
+        await pushToCloudRef.current();
+        // Pull after push to bring in any other devices' data
+        await pullFromCloudRef.current();
+      } catch {
+        // Errors are handled within push/pull themselves (sets pushError)
+      }
     }, 2000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
