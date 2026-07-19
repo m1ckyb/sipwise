@@ -278,16 +278,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setProfileState(data.profile);
           changed = true;
         }
-        if (data.drinks && JSON.stringify(data.drinks) !== JSON.stringify(drinksRef.current)) {
-          setDrinks(data.drinks);
+
+        const mergedDrinks = data.drinks
+          ? mergeDrinkArrays(drinksRef.current, data.drinks)
+          : drinksRef.current;
+        if (JSON.stringify(mergedDrinks) !== JSON.stringify(drinksRef.current)) {
+          setDrinks(mergedDrinks);
           changed = true;
         }
-        if (data.presets && JSON.stringify(data.presets) !== JSON.stringify(presetsRef.current)) {
-          setPresets(data.presets);
+
+        const mergedPresets = data.presets
+          ? mergePresetArrays(presetsRef.current, data.presets)
+          : presetsRef.current;
+        if (JSON.stringify(mergedPresets) !== JSON.stringify(presetsRef.current)) {
+          setPresets(mergedPresets);
           changed = true;
         }
+
         if (changed) {
           skipNextPushRef.current = true;
+        }
+
+        // If local state contained drinks/presets not yet saved to cloud, push merged result
+        if (data.drinks && mergedDrinks.length > data.drinks.length) {
+          await pushToCloud();
         }
       } else {
         await pushToCloud();
@@ -400,7 +414,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch {
         // Errors are handled within push/pull themselves (sets pushError)
       }
-    }, 2000);
+    }, 500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, drinks, presets]);
