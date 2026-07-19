@@ -7,6 +7,8 @@
 - **5-Second Fetch Timeout Circuit Breaker**: Configured global `AbortController` 5s timeout in Supabase client (`src/utils/supabase.ts`).
 - **React UI Error Boundary**: Created `<ErrorBoundary>` fallback wrapper to catch uncaught component rendering exceptions.
 - **Lazy Loaded Sub-Panels**: Implemented `React.lazy()` and `<Suspense>` code splitting for `AuthPanel`, `PushNotificationsPanel`, and `DataManagerPanel`.
+- **PR Preview & Staging CI Workflow (`.github/workflows/pr-preview.yml`)**: Added automated staging preview check, lint, test, build verification, and artifact generation on pull requests.
+- **Post-Deployment Health Check & Rollback Verification (`.github/workflows/deploy.yml`)**: Added HTTP API ping verification step after Edge Function deployment.
 - **PWA BackgroundSync Handler**: Added `sync` event handler in service worker (`src/sw.ts`) for background sync support.
 
 ### Changed

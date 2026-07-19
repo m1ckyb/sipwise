@@ -58,3 +58,13 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
+      - name: Verify Post-Deployment Health Check 🏥
+        run: |
+          echo "Running post-deployment API health check..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/api" || true)
+          if [ "$STATUS" -ne 200 ] && [ "$STATUS" -ne 401 ]; then
+            echo "::error::Post-deployment health check failed with status $STATUS. Rollback required."
+            exit 1
+          fi
+          echo "Post-deployment health check passed (HTTP status $STATUS)."
+
