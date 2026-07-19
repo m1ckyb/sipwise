@@ -10,7 +10,7 @@
 - **Absorption Model Selector UI**: Added UI dropdown in `MetabolismPanel` to select between Instant Widmark and 30-minute GI Physiological Absorption Ramp.
 - **Security Meta Headers (`index.html`)**: Added `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin` security headers.
 - **In-Database Rate Limiter (`check_rate_limit`)**: Added PostgreSQL rate limiting table (`public.rate_limits`) and RPC function enforcing 60 requests/minute per key/IP in `/api` Edge Function.
-- **In-Database Error Logging APM (`public.error_logs`)**: Added `error_logs` table in Supabase and connected `logger.error()` and `<ErrorBoundary>` stack traces to persist UI/API crashes.
+- **Patch Release Guide (`make-patch-release.md`)**: Created step-by-step release procedure guide covering both local terminal (0 GitHub Actions minutes) and automated CI/CD pipeline deployments.
 
 ### Changed
 
