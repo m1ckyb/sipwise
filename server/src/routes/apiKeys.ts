@@ -1,9 +1,16 @@
 import { Hono } from 'hono';
 import crypto from 'node:crypto';
+import { z } from 'zod';
 import { db } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { logAuditEvent } from '../utils/audit.js';
+import type { Env } from '../types.js';
 
-const apiKeys = new Hono();
+const CreateKeySchema = z.object({
+  name: z.string().min(1, 'API key name is required').max(100),
+});
+
+const apiKeys = new Hono<Env>();
 apiKeys.use('*', authMiddleware);
 
 apiKeys.get('/', async (c) => {
@@ -17,13 +24,12 @@ apiKeys.get('/', async (c) => {
 
 apiKeys.post('/', async (c) => {
   const userId = c.get('userId') as string;
-  const { name } = await c.req.json<{ name: string }>();
-
-  if (!name) {
-    return c.json({ error: 'name is required' }, 400);
+  const parsed = CreateKeySchema.safeParse(await c.req.json());
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0].message }, 400);
   }
+  const { name } = parsed.data;
 
-  // Generate a random API key
   const rawKey = `sw_${crypto.randomBytes(32).toString('hex')}`;
   const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
   const keyPrefix = rawKey.slice(0, 8);
@@ -33,14 +39,26 @@ apiKeys.post('/', async (c) => {
     [userId, name, keyHash, keyPrefix],
   );
 
-  // Return the raw key ONCE — it cannot be retrieved again
+  await logAuditEvent(userId, 'api_key_created', { name, key_id: rows[0].id });
+
   return c.json({ key: rawKey, record: rows[0] });
 });
 
 apiKeys.delete('/:id', async (c) => {
   const userId = c.get('userId') as string;
   const keyId = c.req.param('id');
+
+  const { rows } = await db.query(
+    'SELECT id, name FROM sipwise_api_keys WHERE id = $1 AND user_id = $2',
+    [keyId, userId],
+  );
+
   await db.query('DELETE FROM sipwise_api_keys WHERE id = $1 AND user_id = $2', [keyId, userId]);
+
+  if (rows.length > 0) {
+    await logAuditEvent(userId, 'api_key_deleted', { key_id: keyId, name: rows[0].name });
+  }
+
   return c.json({ success: true });
 });
 

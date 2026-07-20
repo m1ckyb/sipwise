@@ -1,48 +1,32 @@
-interface RateLimitEntry {
-  count: number;
-  windowStart: number;
-}
+import { db } from '../db.js';
 
-const buckets = new Map<string, RateLimitEntry>();
-
-function cleanup() {
-  const now = Date.now();
-  for (const [key, entry] of buckets) {
-    if (now - entry.windowStart > 120_000) {
-      buckets.delete(key);
-    }
-  }
-}
-
-const CLEANUP_INTERVAL = 60_000;
-let cleanupTimer: ReturnType<typeof setInterval> | null = null;
-
-function ensureCleanup() {
-  if (!cleanupTimer) {
-    cleanupTimer = setInterval(cleanup, CLEANUP_INTERVAL);
-  }
-}
-
-export function checkRateLimit(
+export async function checkRateLimit(
   key: string,
   maxRequests = 60,
   windowSeconds = 60,
-): { allowed: boolean; count: number; max: number } {
-  ensureCleanup();
+): Promise<{ allowed: boolean; count: number; max: number }> {
+  const windowStart = new Date(Date.now() - windowSeconds * 1000);
 
-  const now = Date.now();
-  const windowMs = windowSeconds * 1000;
-  const entry = buckets.get(key);
+  // Purge expired entries (batch cleanup)
+  await db.query('DELETE FROM sipwise_rate_limits WHERE window_start < $1', [windowStart]);
 
-  if (!entry || now - entry.windowStart > windowMs) {
-    buckets.set(key, { count: 1, windowStart: now });
-    return { allowed: true, count: 1, max: maxRequests };
-  }
+  // Increment or insert — if the window expired, reset count to 1
+  const { rows } = await db.query(
+    `INSERT INTO sipwise_rate_limits (key, request_count, window_start)
+     VALUES ($1, 1, now())
+     ON CONFLICT (key) DO UPDATE SET
+       request_count = CASE
+         WHEN sipwise_rate_limits.window_start < $2 THEN 1
+         ELSE sipwise_rate_limits.request_count + 1
+       END,
+       window_start = CASE
+         WHEN sipwise_rate_limits.window_start < $2 THEN now()
+         ELSE sipwise_rate_limits.window_start
+       END
+     RETURNING request_count`,
+    [key, windowStart],
+  );
 
-  if (entry.count >= maxRequests) {
-    return { allowed: false, count: entry.count, max: maxRequests };
-  }
-
-  entry.count++;
-  return { allowed: true, count: entry.count, max: maxRequests };
+  const count: number = rows[0].request_count;
+  return { allowed: count <= maxRequests, count, max: maxRequests };
 }

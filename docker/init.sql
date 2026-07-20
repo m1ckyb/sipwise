@@ -96,7 +96,28 @@ CREATE INDEX IF NOT EXISTS idx_error_logs_created_at
   ON sipwise_error_logs(created_at DESC);
 
 -- ============================================================
--- 8. Auto-update updated_at trigger
+-- 8. Audit Trail (security and compliance logging)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS sipwise_audit_trail (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES sipwise_users(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  details JSONB,
+  ip_address TEXT,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_trail_user_id
+  ON sipwise_audit_trail(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_audit_trail_created_at
+  ON sipwise_audit_trail(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_trail_action
+  ON sipwise_audit_trail(action);
+
+-- ============================================================
+-- 9. Auto-update updated_at trigger
 -- ============================================================
 CREATE OR REPLACE FUNCTION handle_updated_at()
 RETURNS TRIGGER AS $$

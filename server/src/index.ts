@@ -1,8 +1,8 @@
-import { serve } from '@hono/node-server';
+import { serve, type ServerType } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
 import { bodyLimit } from 'hono/body-limit';
+import { logger as honoLogger } from 'hono/logger';
 
 import authRoutes from './routes/auth.js';
 import dataRoutes from './routes/data.js';
@@ -10,18 +10,23 @@ import pushRoutes from './routes/push.js';
 import logsRoutes from './routes/logs.js';
 import apiRoutes from './routes/api.js';
 import apiKeysRoutes from './routes/apiKeys.js';
-import { startCron } from './cron/checkAlerts.js';
+import { startCron, stopCron } from './cron/checkAlerts.js';
 import { db } from './db.js';
+import { logger } from './utils/logger.js';
+import { requestId } from './middleware/requestId.js';
+import { csrfProtection } from './middleware/csrf.js';
 
 const app = new Hono();
 
-// Middleware
-app.use('*', logger());
+// Middleware — order matters
+app.use('*', requestId);
+app.use('*', honoLogger());
 app.use('*', cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',').map(s => s.trim()).filter(Boolean) || ['http://localhost:8080'],
   credentials: true,
 }));
-app.use('*', bodyLimit({ maxSize: 1024 * 1024 })); // 1MB max request body
+app.use('*', bodyLimit({ maxSize: 1024 * 1024 }));
+app.use('*', csrfProtection);
 
 // Health check — verifies DB connectivity
 app.get('/api/health', async (c) => {
@@ -29,7 +34,7 @@ app.get('/api/health', async (c) => {
     await db.query('SELECT 1');
     return c.json({ status: 'ok', db: 'ok', version: '0.1.25' });
   } catch (err) {
-    console.error('[SipWise] Health check failed:', err);
+    logger.error({ err }, 'Health check failed');
     return c.json({ status: 'degraded', db: 'error', version: '0.1.25' }, 503);
   }
 });
@@ -47,13 +52,44 @@ app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
 // Error handler
 app.onError((err, c) => {
-  console.error('[SipWise] Unhandled error:', err);
+  logger.error({ err }, 'Unhandled error');
   return c.json({ error: 'Internal server error' }, 500);
 });
 
 const port = parseInt(process.env.PORT || '3000', 10);
 
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`[SipWise] API server running on http://localhost:${info.port}`);
+const server: ServerType = serve({ fetch: app.fetch, port }, (info) => {
+  logger.info({ port: info.port }, 'SipWise API server started');
   startCron();
 });
+
+// Graceful shutdown
+let shuttingDown = false;
+
+async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info({ signal }, 'Shutting down gracefully...');
+
+  stopCron();
+
+  server.close(() => {
+    logger.info('HTTP server closed');
+    db.end().then(() => {
+      logger.info('Database pool closed');
+      process.exit(0);
+    }).catch((err) => {
+      logger.error({ err }, 'Error closing database pool');
+      process.exit(1);
+    });
+  });
+
+  // Force shutdown after 10s
+  setTimeout(() => {
+    logger.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

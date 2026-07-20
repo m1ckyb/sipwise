@@ -2,12 +2,15 @@ import cron from 'node-cron';
 import { db } from '../db.js';
 import { calculateBAC, type Drink, type Profile } from '../utils/bac.js';
 import { vapidConfigured, webpush } from '../utils/vapid.js';
+import { logger } from '../utils/logger.js';
+
+const scheduledTasks: cron.ScheduledTask[] = [];
 
 async function checkAlerts() {
   if (!vapidConfigured) return;
 
   try {
-    console.log('[SipWise Cron] Checking BAC levels for active users...');
+    logger.info('Checking BAC levels for active users');
 
     const { rows: subscriptions } = await db.query(
       'SELECT user_id, subscription, endpoint FROM sipwise_push_subscriptions',
@@ -48,7 +51,7 @@ async function checkAlerts() {
             );
             alertsSent++;
           } catch (err: unknown) {
-            console.error(`Failed to send push to ${sub.endpoint}:`, err);
+            logger.error({ err, endpoint: sub.endpoint }, 'Failed to send push notification');
             if (err && typeof err === 'object' && 'statusCode' in err && (err as Record<string, unknown>).statusCode === 410) {
               await db.query('DELETE FROM sipwise_push_subscriptions WHERE endpoint = $1', [sub.endpoint]);
             }
@@ -62,15 +65,50 @@ async function checkAlerts() {
     }
 
     if (alertsSent > 0) {
-      console.log(`[SipWise Cron] Sent ${alertsSent} sober alerts.`);
+      logger.info({ alertsSent }, 'Sent sober alerts');
     }
   } catch (err) {
-    console.error('[SipWise Cron] Error checking alerts:', err);
+    logger.error({ err }, 'Error checking alerts');
+  }
+}
+
+async function cleanupIdempotencyKeys() {
+  try {
+    const { rowCount } = await db.query(
+      "DELETE FROM sipwise_idempotency_keys WHERE created_at < now() - interval '7 days'",
+    );
+    if (rowCount && rowCount > 0) {
+      logger.info({ deleted: rowCount }, 'Cleaned up expired idempotency keys');
+    }
+  } catch (err) {
+    logger.error({ err }, 'Error cleaning up idempotency keys');
+  }
+}
+
+async function cleanupRateLimitEntries() {
+  try {
+    const { rowCount } = await db.query(
+      'DELETE FROM sipwise_rate_limits WHERE window_start < now() - interval \'2 hours\'',
+    );
+    if (rowCount && rowCount > 0) {
+      logger.info({ deleted: rowCount }, 'Cleaned up stale rate limit entries');
+    }
+  } catch (err) {
+    logger.error({ err }, 'Error cleaning up rate limit entries');
   }
 }
 
 export function startCron() {
-  // Run every 5 minutes
-  cron.schedule('*/5 * * * *', checkAlerts);
-  console.log('[SipWise Cron] Sober alert checker scheduled (every 5 minutes).');
+  scheduledTasks.push(cron.schedule('*/5 * * * *', checkAlerts));
+  scheduledTasks.push(cron.schedule('0 3 * * *', cleanupIdempotencyKeys));
+  scheduledTasks.push(cron.schedule('0 * * * *', cleanupRateLimitEntries));
+
+  logger.info('Cron jobs scheduled (alerts/5min, idempotency/daily, rate limits/hourly)');
+}
+
+export function stopCron() {
+  for (const task of scheduledTasks) {
+    task.stop();
+  }
+  scheduledTasks.length = 0;
 }

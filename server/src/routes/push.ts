@@ -1,8 +1,15 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { db } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
+import type { Env } from '../types.js';
 
-const push = new Hono();
+const PushSubscriptionSchema = z.object({
+  endpoint: z.string().url('Invalid push endpoint URL'),
+  subscription: z.any(),
+});
+
+const push = new Hono<Env>();
 push.use('*', authMiddleware);
 
 push.get('/check/:endpoint', async (c) => {
@@ -16,14 +23,11 @@ push.get('/check/:endpoint', async (c) => {
 
 push.post('/', async (c) => {
   const userId = c.get('userId') as string;
-  const { endpoint, subscription } = await c.req.json<{
-    endpoint: string;
-    subscription: unknown;
-  }>();
-
-  if (!endpoint || !subscription) {
-    return c.json({ error: 'endpoint and subscription are required' }, 400);
+  const parsed = PushSubscriptionSchema.safeParse(await c.req.json());
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0].message }, 400);
   }
+  const { endpoint, subscription } = parsed.data;
 
   await db.query(
     `INSERT INTO sipwise_push_subscriptions (endpoint, user_id, subscription, updated_at)

@@ -1,7 +1,16 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { db } from '../db.js';
+import type { Env } from '../types.js';
 
-const logs = new Hono();
+const LogSchema = z.object({
+  error_message: z.string().min(1),
+  stack_trace: z.string().optional(),
+  source: z.string().optional(),
+  context: z.any().optional(),
+});
+
+const logs = new Hono<Env>();
 
 logs.post('/', async (c) => {
   const authHeader = c.req.header('Authorization');
@@ -17,16 +26,11 @@ logs.post('/', async (c) => {
     }
   }
 
-  const { error_message, stack_trace, source, context } = await c.req.json<{
-    error_message: string;
-    stack_trace?: string;
-    source?: string;
-    context?: unknown;
-  }>();
-
-  if (!error_message) {
-    return c.json({ error: 'error_message is required' }, 400);
+  const parsed = LogSchema.safeParse(await c.req.json());
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0].message }, 400);
   }
+  const { error_message, stack_trace, source, context } = parsed.data;
 
   await db.query(
     'INSERT INTO sipwise_error_logs (user_id, error_message, stack_trace, source, context) VALUES ($1, $2, $3, $4, $5)',

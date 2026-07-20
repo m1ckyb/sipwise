@@ -1,4 +1,5 @@
 import webpush from 'web-push';
+import { logger } from './logger.js';
 
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
@@ -8,9 +9,9 @@ export const vapidConfigured = !!(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
 
 if (vapidConfigured) {
   webpush.setVapidDetails(VAPID_CONTACT_EMAIL, VAPID_PUBLIC_KEY!, VAPID_PRIVATE_KEY!);
-  console.log('[SipWise] VAPID keys loaded — push notifications enabled.');
+  logger.info('VAPID keys loaded — push notifications enabled');
 } else {
-  console.warn('[SipWise] VAPID keys not set — push notifications disabled.');
+  logger.warn('VAPID keys not set — push notifications disabled');
 }
 
 export { webpush };

@@ -1,9 +1,11 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { db } from '../db.js';
 import { checkRateLimit } from '../middleware/rateLimit.js';
 import { calculateBAC, calculateTimeToZero, estimateCalories, type Drink, type Profile } from '../utils/bac.js';
+import type { Env } from '../types.js';
 
-const api = new Hono();
+const api = new Hono<Env>();
 
 function corsHeaders(origin: string | null | undefined) {
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -27,7 +29,6 @@ async function authenticateApiKey(c: Request): Promise<{ userId: string; keyId: 
   const apiKey = c.headers.get('x-api-key');
   if (!apiKey) return null;
 
-  // Hash the incoming key for secure lookup
   const encoder = new TextEncoder();
   const data = encoder.encode(apiKey);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -39,7 +40,6 @@ async function authenticateApiKey(c: Request): Promise<{ userId: string; keyId: 
   );
   if (rows.length === 0) return null;
 
-  // Update last_used_at asynchronously
   db.query('UPDATE sipwise_api_keys SET last_used_at = now() WHERE id = $1', [rows[0].id]).then();
 
   return { userId: rows[0].user_id, keyId: rows[0].id };
@@ -54,7 +54,7 @@ api.get('/bac', async (c) => {
     return c.json({ error: 'Invalid API key' }, 401, headers);
   }
 
-  const rateLimitResult = checkRateLimit(`rate_limit:${auth.userId}`);
+  const rateLimitResult = await checkRateLimit(`rate_limit:${auth.userId}`);
   if (!rateLimitResult.allowed) {
     return c.json({ error: 'Too many requests. Rate limit exceeded (60 req/min).' }, 429, headers);
   }
@@ -101,6 +101,15 @@ api.get('/bac', async (c) => {
   }, 200, headers);
 });
 
+const AddDrinkSchema = z.object({
+  action: z.literal('add_drink'),
+  volume: z.number().positive('Volume must be positive'),
+  abv: z.number().min(0).max(100, 'ABV must be 0-100'),
+  name: z.string().max(200).optional(),
+  timestamp: z.string().datetime().optional(),
+  calories: z.number().nonnegative().optional(),
+});
+
 api.post('/bac', async (c) => {
   const origin = c.req.header('origin');
   const headers = corsHeaders(origin);
@@ -110,19 +119,16 @@ api.post('/bac', async (c) => {
     return c.json({ error: 'Invalid API key' }, 401, headers);
   }
 
-  const rateLimitResult = checkRateLimit(`rate_limit:${auth.userId}`);
+  const rateLimitResult = await checkRateLimit(`rate_limit:${auth.userId}`);
   if (!rateLimitResult.allowed) {
     return c.json({ error: 'Too many requests. Rate limit exceeded (60 req/min).' }, 429, headers);
   }
 
-  const body = await c.req.json<{ action?: string; volume?: number; abv?: number; name?: string; timestamp?: string; calories?: number }>();
-
-  if (body.action !== 'add_drink') {
-    return c.json({ error: 'Unknown action' }, 400, headers);
+  const parsed = AddDrinkSchema.safeParse(await c.req.json());
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0].message }, 400, headers);
   }
-  if (body.volume === undefined || body.abv === undefined) {
-    return c.json({ error: 'Missing volume or abv' }, 400, headers);
-  }
+  const body = parsed.data;
 
   // Idempotency check
   const idempotencyKey = c.req.header('x-idempotency-key');
@@ -136,8 +142,7 @@ api.post('/bac', async (c) => {
     }
   }
 
-  // Fetch current drinks
-  const { rows } = await db.query('SELECT drinks FROM sipwise_user_data WHERE id = $1', [auth.userId]);
+  const { rows } = await db.query('SELECT drinks, profile FROM sipwise_user_data WHERE id = $1', [auth.userId]);
   if (rows.length === 0) {
     return c.json({ error: 'User data not found' }, 404, headers);
   }
@@ -148,10 +153,10 @@ api.post('/bac', async (c) => {
   const newDrink: Drink = {
     id: crypto.randomUUID(),
     timestamp: body.timestamp ? new Date(body.timestamp).getTime() : now,
-    volume: Number(body.volume),
-    abv: Number(body.abv),
+    volume: body.volume,
+    abv: body.abv,
     name: body.name || 'API Drink',
-    calories: body.calories !== undefined ? Number(body.calories) : undefined,
+    calories: body.calories,
   };
 
   drinks.push(newDrink);
@@ -161,7 +166,6 @@ api.post('/bac', async (c) => {
     [JSON.stringify(drinks), auth.userId],
   );
 
-  // Calculate and return updated BAC
   const profile: Profile = rows[0].profile;
   const currentBac = calculateBAC(drinks, profile, now);
   const timeToZero = calculateTimeToZero(drinks, profile, now);
@@ -179,7 +183,6 @@ api.post('/bac', async (c) => {
     },
   };
 
-  // Store idempotency key
   if (idempotencyKey) {
     db.query(
       'INSERT INTO sipwise_idempotency_keys (key, user_id, response_body) VALUES ($1, $2, $3) ON CONFLICT (key) DO NOTHING',

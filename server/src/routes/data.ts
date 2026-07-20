@@ -1,8 +1,17 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { db } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
+import type { Env } from '../types.js';
 
-const data = new Hono();
+const PutDataSchema = z.object({
+  profile: z.any().optional(),
+  drinks: z.any().optional(),
+  presets: z.any().optional(),
+  is_sober: z.boolean().optional(),
+});
+
+const data = new Hono<Env>();
 data.use('*', authMiddleware);
 
 data.get('/', async (c) => {
@@ -17,12 +26,11 @@ data.get('/', async (c) => {
 
 data.put('/', async (c) => {
   const userId = c.get('userId') as string;
-  const body = await c.req.json<{
-    profile?: unknown;
-    drinks?: unknown;
-    presets?: unknown;
-    is_sober?: boolean;
-  }>();
+  const parsed = PutDataSchema.safeParse(await c.req.json());
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0].message }, 400);
+  }
+  const body = parsed.data;
 
   await db.query(
     `INSERT INTO sipwise_user_data (id, profile, drinks, presets, is_sober, updated_at)

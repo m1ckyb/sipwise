@@ -15,7 +15,9 @@
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^3.0.3",
     "pg": "^8.16.0",
-    "web-push": "^3.6.6"
+    "pino": "^10.3.1",
+    "web-push": "^3.6.6",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
@@ -23,6 +25,7 @@
     "@types/node": "^22.16.5",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.15.4",
+    "@types/pino": "^7.0.4",
     "@types/web-push": "^3.6.4",
     "tsx": "^4.19.5",
     "typescript": "~5.8.3"

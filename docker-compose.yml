@@ -14,6 +14,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
 
   api:
     build:
@@ -29,8 +34,16 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
       PORT: "3000"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080}
     ports:
       - "3000:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
 
   frontend:
     build:
@@ -43,6 +56,35 @@ services:
       - api
     ports:
       - "${PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      pg:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-sipwise}
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c 'mkdir -p /backups && while true; do
+        echo "[$(date -Iseconds)] Starting backup...";
+        pg_dump -U sipwise -h pg sipwise | gzip > /backups/sipwise_$$(date +%Y%m%d_%H%M%S).sql.gz;
+        find /backups -name "*.sql.gz" -mtime +30 -delete;
+        echo "[$(date -Iseconds)] Backup complete. Next backup in 24h.";
+        sleep 86400;
+      done'
 
 volumes:
   pgdata:

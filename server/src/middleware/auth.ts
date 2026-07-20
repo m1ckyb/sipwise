@@ -1,5 +1,6 @@
 import type { Context, Next } from 'hono';
 import jwt from 'jsonwebtoken';
+import type { Env } from '../types.js';
 
 if (!process.env.JWT_SECRET) {
   console.error('[SipWise] FATAL: JWT_SECRET environment variable is not set. Refusing to start.');
@@ -24,7 +25,7 @@ export function verifyToken(token: string): JwtPayload {
   return jwt.verify(token, JWT_SECRET) as JwtPayload;
 }
 
-export async function authMiddleware(c: Context, next: Next) {
+export async function authMiddleware(c: Context<Env>, next: Next) {
   const authHeader = c.req.header('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return c.json({ error: 'Missing or invalid Authorization header' }, 401);
@@ -33,7 +34,6 @@ export async function authMiddleware(c: Context, next: Next) {
   try {
     const payload = verifyToken(authHeader.slice(7));
     c.set('userId', payload.sub);
-    c.set('userEmail', payload.email);
     await next();
   } catch {
     return c.json({ error: 'Invalid or expired token' }, 401);
