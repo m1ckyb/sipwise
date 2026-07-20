@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, us
 import { calculateBAC, calculateTimeToZero, type Drink, type Profile } from '../utils/bac';
 import { supabase } from '../utils/supabase';
 import type { User } from '@supabase/supabase-js';
+import { isLocalMode } from '../utils/mode';
+import { apiGet, apiPut, clearToken } from '../utils/api';
 
 interface AppContextType {
   profile: Profile;
@@ -203,30 +205,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     setIsSyncing(true);
     try {
-      const currentBAC = calculateBAC(drinksRef.current, profileRef.current);
-      const isSober = currentBAC === 0;
-
-      const payload = {
-        id: user.id,
-        profile: profileRef.current,
-        drinks: drinksRef.current,
-        presets: presetsRef.current,
-        is_sober: isSober,
-        updated_at: new Date().toISOString(),
-      };
-
-      const { error } = await supabase
-        .from('user_data')
-        .upsert(payload);
-      
-      if (!error) {
-        const now = new Date().toLocaleString();
-        setLastSynced(now);
-        safeSetItem('sipwise_last_synced', now);
-        setPushError(null);
+      if (isLocalMode) {
+        await apiPut('/api/data', {
+          profile: profileRef.current,
+          drinks: drinksRef.current,
+          presets: presetsRef.current,
+        });
       } else {
-        setPushError(error.message || 'Failed to sync. Please try again.');
+        const currentBAC = calculateBAC(drinksRef.current, profileRef.current);
+        const isSober = currentBAC === 0;
+
+        const payload = {
+          id: user.id,
+          profile: profileRef.current,
+          drinks: drinksRef.current,
+          presets: presetsRef.current,
+          is_sober: isSober,
+          updated_at: new Date().toISOString(),
+        };
+
+        const { error } = await supabase
+          .from('user_data')
+          .upsert(payload);
+
+        if (error) {
+          setPushError(error.message || 'Failed to sync. Please try again.');
+          return;
+        }
       }
+      const now = new Date().toLocaleString();
+      setLastSynced(now);
+      safeSetItem('sipwise_last_synced', now);
+      setPushError(null);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setPushError(`Push failed: ${message}. Please try again.`);
@@ -240,15 +250,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     setIsSyncing(true);
     try {
-      const { data, error } = await supabase
-        .from('user_data')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
+      let data: { profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] } | null = null;
 
-      if (error) {
-        setPushError(error.message || 'Failed to pull from cloud.');
-        throw new Error(error.message || 'Failed to pull from cloud.');
+      if (isLocalMode) {
+        const resp = await apiGet<{ profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] }>('/api/data');
+        data = resp;
+      } else {
+        const { data: cloudData, error } = await supabase
+          .from('user_data')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (error) {
+          setPushError(error.message || 'Failed to pull from cloud.');
+          throw new Error(error.message || 'Failed to pull from cloud.');
+        }
+        data = cloudData;
       }
 
       if (data) {
@@ -333,7 +351,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (data.presets) setPresets(data.presets);
   }, []);
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    if (isLocalMode) {
+      clearToken();
+    } else {
+      await supabase.auth.signOut();
+    }
     setUser(null);
     setLastSynced(null);
     localStorage.removeItem('sipwise_last_synced');
@@ -357,6 +379,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Auth Listener
   useEffect(() => {
+    if (isLocalMode) {
+      // Local mode: check for existing JWT token
+      const token = localStorage.getItem('sipwise_api_token');
+      if (token) {
+        apiGet<{ user: { id: string; email: string } }>('/api/auth/me')
+          .then(({ user: u }) => setUser(u as unknown as User))
+          .catch(() => { clearToken(); });
+      }
+      return;
+    }
+
+    // Supabase mode
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });

@@ -1,6 +1,8 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { supabase } from '../../utils/supabase';
+import { isLocalMode } from '../../utils/mode';
+import { apiGet } from '../../utils/api';
 import type { Drink, Profile } from '../../utils/bac';
 import ConfirmModal from '../ConfirmModal';
 
@@ -46,20 +48,28 @@ function DataManagerPanel() {
 
   const handleBackupFromCloud = async () => {
     if (!user) {
-      showToast('Sign in on the Profile page to access cloud data.', 'error');
+      showToast('Sign in on the Profile page to access your data.', 'error');
       return;
     }
-    showToast('Downloading cloud backup...', 'info');
+    showToast('Downloading backup...', 'info');
     try {
-      const { data, error } = await supabase
-        .from('user_data')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
+      let data: { profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] } | null = null;
 
-      if (error) throw error;
+      if (isLocalMode) {
+        data = await apiGet('/api/data');
+      } else {
+        const { data: cloudData, error } = await supabase
+          .from('user_data')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+        data = cloudData;
+      }
+
       if (!data) {
-        showToast('No cloud data found for your account.', 'error');
+        showToast('No data found for your account.', 'error');
         return;
       }
 
@@ -69,22 +79,22 @@ function DataManagerPanel() {
         presets: data.presets,
         exportDate: new Date().toISOString(),
         version: '1.0',
-        source: 'cloud',
+        source: isLocalMode ? 'server' : 'cloud',
       };
 
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `sipwise-cloud-backup-${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `sipwise-${isLocalMode ? 'server' : 'cloud'}-backup-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      showToast('Cloud backup downloaded successfully!', 'success');
+      showToast(`${isLocalMode ? 'Server' : 'Cloud'} backup downloaded successfully!`, 'success');
     } catch (err) {
-      console.error('Cloud backup failed:', err);
-      showToast('Failed to download cloud backup. Please try again.', 'error');
+      console.error('Backup failed:', err);
+      showToast('Failed to download backup. Please try again.', 'error');
     }
   };
 
@@ -125,27 +135,35 @@ function DataManagerPanel() {
   const handleRestoreFromCloud = async () => {
     setPickSourceModal(false);
     if (!user) {
-      showToast('Sign in on the Profile page to access cloud data.', 'error');
+      showToast('Sign in on the Profile page to access your data.', 'error');
       return;
     }
-    showToast('Restoring from cloud...', 'info');
+    showToast(`Restoring from ${isLocalMode ? 'server' : 'cloud'}...`, 'info');
     try {
-      const { data, error } = await supabase
-        .from('user_data')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
+      let data: { profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] } | null = null;
 
-      if (error) throw error;
+      if (isLocalMode) {
+        data = await apiGet('/api/data');
+      } else {
+        const { data: cloudData, error } = await supabase
+          .from('user_data')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+        data = cloudData;
+      }
+
       if (!data) {
-        showToast('No cloud data found for your account.', 'error');
+        showToast('No data found for your account.', 'error');
         return;
       }
 
-      restoreData('cloud', data);
+      restoreData(isLocalMode ? 'server' : 'cloud', data);
     } catch (err) {
-      console.error('Cloud restore failed:', err);
-      showToast('Failed to restore from cloud. Please try again.', 'error');
+      console.error('Restore failed:', err);
+      showToast(`Failed to restore from ${isLocalMode ? 'server' : 'cloud'}. Please try again.`, 'error');
     }
   };
 
@@ -249,7 +267,7 @@ function DataManagerPanel() {
                 Export Data
               </button>
               <button className="btn btn-secondary" onClick={handleBackupFromCloud}>
-                Backup from Cloud
+                Backup from {isLocalMode ? 'Server' : 'Cloud'}
               </button>
               <button className="btn btn-secondary" onClick={() => setPickSourceModal(true)}>
                 Restore Data
@@ -270,7 +288,7 @@ function DataManagerPanel() {
                   <span className="restore-source-title">Restore from…</span>
                   <div className="restore-source-buttons">
                     <button className="btn btn-secondary" onClick={handleRestoreFromCloud}>
-                      ☁️ Cloud
+                      ☁️ {isLocalMode ? 'Server' : 'Cloud'}
                     </button>
                     <button className="btn btn-secondary" onClick={handleRestoreFromFileClick}>
                       📁 File
@@ -281,7 +299,7 @@ function DataManagerPanel() {
               </div>
             )}
 
-            <p className="help-text">Export your data, download a cloud backup, or restore missing entries from the cloud or a file.</p>
+            <p className="help-text">Export your data, download a {isLocalMode ? 'server' : 'cloud'} backup, or restore missing entries from the {isLocalMode ? 'server' : 'cloud'} or a file.</p>
           </div>
         </div>
       </div>

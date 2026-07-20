@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { supabase } from '../../utils/supabase';
+import { isLocalMode } from '../../utils/mode';
+import { apiGet } from '../../utils/api';
 import { 
   isPushSupported, 
   requestNotificationPermission, 
@@ -36,16 +38,23 @@ function PushNotificationsPanel() {
           if (sub) {
             setSubscriptionEndpoint(sub.endpoint);
             if (user) {
-              const { data, error } = await supabase
-                .from('push_subscriptions')
-                .select('*')
-                .eq('endpoint', sub.endpoint)
-                .maybeSingle();
-              if (data && !error) {
-                setSyncStatus('synced');
+              let found = false;
+              if (isLocalMode) {
+                try {
+                  const data = await apiGet<{ synced: boolean }>(`/api/push-subscriptions/check/${encodeURIComponent(sub.endpoint)}`);
+                  found = data.synced;
+                } catch {
+                  found = false;
+                }
               } else {
-                setSyncStatus('local');
+                const { data, error } = await supabase
+                  .from('push_subscriptions')
+                  .select('*')
+                  .eq('endpoint', sub.endpoint)
+                  .maybeSingle();
+                found = !!data && !error;
               }
+              setSyncStatus(found ? 'synced' : 'local');
             } else {
               setSyncStatus('local');
             }
@@ -160,7 +169,7 @@ function PushNotificationsPanel() {
                     </strong>
                     {isSubscribed && syncStatus && (
                       <span className={`sync-badge ${syncStatus}`}>
-                        {syncStatus === 'synced' ? '☁️ Synced to Cloud' : '💻 Local Only'}
+                        {syncStatus === 'synced' ? (isLocalMode ? '🖥️ Synced to Server' : '☁️ Synced to Cloud') : '💻 Local Only'}
                       </span>
                     )}
                   </div>

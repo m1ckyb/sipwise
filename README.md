@@ -14,15 +14,16 @@ SipWise is a Blood Alcohol Content (BAC) calculator and consumption tracker web 
 - **Calorie Tracking:** Tracks calorie intake for each drink with optional manual override or smart heuristic estimations based on drink type (beer, wine, spirit).
 - **BAC Graph:** Visual representation of your BAC over time.
 - **PWA Support:** Installable on mobile and desktop for offline use.
-- **Supabase Integration:** Secure data storage and synchronization.
+- **Dual Deployment:** Run fully self-hosted with Docker + PostgreSQL, or use Supabase cloud.
 
 ## Tech Stack
 
 - **Frontend:** React 19, TypeScript, Vite
 - **Styling:** Vanilla CSS
 - **Charts:** Recharts
-- **Database:** Supabase
-- **Deployment:** GitHub Pages
+- **Database:** Supabase (cloud) or PostgreSQL (local)
+- **Local Backend:** Hono (Node.js)
+- **Deployment:** GitHub Pages or Docker
 
 ---
 
@@ -59,6 +60,64 @@ SipWise is a Blood Alcohol Content (BAC) calculator and consumption tracker web 
    npm run dev
    ```
    The app will be available at `http://localhost:5173`.
+
+---
+
+## Local / Self-Hosted Deployment
+
+Run SipWise entirely on your own hardware with Docker Compose. No Supabase account needed.
+
+### Prerequisites
+
+- Docker and Docker Compose
+- (Optional) A VAPID key pair for push notifications — generate with `npx web-push generate-vapid-keys`
+
+### Quick Start
+
+1. **Clone and configure:**
+   ```bash
+   git clone https://github.com/m1ckyb/sipwise.git
+   cd sipwise
+   cp docker/.env.example docker/.env
+   ```
+   Edit `docker/.env` — at minimum, set `JWT_SECRET` and your VAPID keys.
+
+2. **Start everything:**
+   ```bash
+   docker compose --env-file docker/.env up -d
+   ```
+   SipWise will be available at `http://localhost:8080` (configurable via `PORT` in `docker/.env`).
+
+3. **Create an account** using the Sign Up form in the Profile section.
+
+### How It Works
+
+- **Environment toggle:** Setting `VITE_API_URL=/api` activates local mode. When absent, the app uses Supabase.
+- **PostgreSQL** stores users, data, push subscriptions, API keys, and error logs with `sipwise_`-prefixed tables.
+- **Nginx** reverse-proxies `/api/*` to the Hono backend on port 3000.
+- **`node-cron`** runs a sober alert checker every 5 minutes (replacing Supabase's `pg_cron`).
+
+### External REST API
+
+The local deployment includes a REST API for Home Assistant and other integrations:
+
+```bash
+# Generate an API key (requires JWT auth from login)
+curl -X POST http://localhost:8080/api/keys \
+  -H "Authorization: Bearer <your-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Home Assistant"}'
+
+# Fetch BAC data (uses API key)
+curl http://localhost:8080/api/bac \
+  -H "x-api-key: sw_<your-api-key>"
+
+# Add a drink
+curl -X POST http://localhost:8080/api/bac \
+  -H "x-api-key: sw_<your-api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"add_drink","volume":330,"abv":5,"name":"Beer"}'
+```
 
 ---
 

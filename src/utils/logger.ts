@@ -9,6 +9,8 @@ export interface LogPayload {
 }
 
 import { supabase } from './supabase';
+import { isLocalMode } from './mode';
+import { apiPost } from './api';
 
 class Logger {
   private log(level: 'info' | 'warn' | 'error', message: string, context?: Record<string, unknown>, stackTrace?: string) {
@@ -21,14 +23,23 @@ class Logger {
 
     if (level === 'error') {
       console.error(JSON.stringify(payload));
-      // Asynchronously log error stack trace to Supabase database APM table
+      // Asynchronously log error to backend APM table
       try {
-        supabase.from('error_logs').insert({
-          error_message: message,
-          stack_trace: stackTrace || (context?.stack as string) || null,
-          source: 'frontend',
-          context: context || null
-        }).then();
+        if (isLocalMode) {
+          apiPost('/api/logs', {
+            error_message: message,
+            stack_trace: stackTrace || (context?.stack as string) || null,
+            source: 'frontend',
+            context: context || null,
+          }).then();
+        } else {
+          supabase.from('error_logs').insert({
+            error_message: message,
+            stack_trace: stackTrace || (context?.stack as string) || null,
+            source: 'frontend',
+            context: context || null
+          }).then();
+        }
       } catch {
         // Ignore logging failures to prevent cascading errors
       }

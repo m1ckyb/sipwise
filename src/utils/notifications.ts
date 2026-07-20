@@ -1,4 +1,6 @@
 import { supabase } from './supabase';
+import { isLocalMode } from './mode';
+import { apiPost, apiDelete } from './api';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 if (!VAPID_PUBLIC_KEY) {
@@ -89,6 +91,11 @@ export async function unsubscribeUserFromPush(): Promise<boolean> {
 // Sync subscription to Supabase user_data or push_subscriptions table
 export async function syncSubscriptionToSupabase(subscription: PushSubscription): Promise<boolean> {
   try {
+    if (isLocalMode) {
+      await apiPost('/api/push-subscriptions', { endpoint: subscription.endpoint, subscription: subscription.toJSON() });
+      return true;
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id || null;
 
@@ -120,6 +127,11 @@ export async function syncSubscriptionToSupabase(subscription: PushSubscription)
 // Delete subscription from Supabase
 export async function deleteSubscriptionFromSupabase(endpoint: string): Promise<boolean> {
   try {
+    if (isLocalMode) {
+      await apiDelete(`/api/push-subscriptions/${encodeURIComponent(endpoint)}`);
+      return true;
+    }
+
     const { error } = await supabase
       .from('push_subscriptions')
       .delete()

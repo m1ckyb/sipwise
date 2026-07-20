@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { supabase } from '../../utils/supabase';
+import { isLocalMode } from '../../utils/mode';
+import { apiPost, setToken } from '../../utils/api';
 
 function AuthPanel() {
   const { 
@@ -16,17 +18,25 @@ function AuthPanel() {
     e.preventDefault();
     setAuthError(null);
     try {
-      const { error } = authMode === 'login' 
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password });
-      
-      if (error) {
-        setAuthError(
-          authMode === 'login'
-            ? 'Invalid email or password. Please try again.'
-            : 'Could not create account. The email may already be registered.'
-        );
+      if (isLocalMode) {
+        const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/signup';
+        const { token } = await apiPost<{ token: string }>(endpoint, { email, password });
+        setToken(token);
+        // Reload user from /me so AppContext picks up the new user
+        window.location.reload();
       } else {
+        const { error } = authMode === 'login' 
+          ? await supabase.auth.signInWithPassword({ email, password })
+          : await supabase.auth.signUp({ email, password });
+        
+        if (error) {
+          setAuthError(
+            authMode === 'login'
+              ? 'Invalid email or password. Please try again.'
+              : 'Could not create account. The email may already be registered.'
+          );
+          return;
+        }
         showToast(
           authMode === 'login' ? 'Logged in successfully!' : 'Account created successfully!',
           'success'
@@ -57,7 +67,7 @@ function AuthPanel() {
         aria-expanded={isOpen}
       >
         <div className="section-title">
-          <span>☁️</span> Cloud Sync
+          <span>☁️</span> {isLocalMode ? 'Account' : 'Cloud Sync'}
         </div>
         <span className="chevron">▶</span>
       </button>
@@ -67,7 +77,9 @@ function AuthPanel() {
             {!user ? (
               <div className="auth-container">
                 <p className="help-text" style={{ marginBottom: '12px' }}>
-                  Sync your data across devices using a free account.
+                  {isLocalMode
+                    ? 'Sign in to sync your data across devices.'
+                    : 'Sync your data across devices using a free account.'}
                 </p>
                 <form onSubmit={handleAuth} className="auth-form">
                   <input 
