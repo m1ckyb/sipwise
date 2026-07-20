@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.25] - 2026-07-20
+
+### Changed
+- Improved physiological absorption model: replaced linear 30-min ramp with first-order exponential kinetics (k=0.15 min⁻¹). Absorption is now ~63% at 7 min, ~90% at 15 min, ~95% at 20 min — closer to real GI transit literature.
+
 ## [0.1.24] - 2026-07-20
 
 ### Added

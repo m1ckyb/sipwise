@@ -97,13 +97,14 @@ describe('BAC Calculation Utility Tests', () => {
       const bacRightNow = calculateBAC(drinks, physProfile, now);
       expect(bacRightNow).toBe(0);
 
-      // After 15 mins (50% absorbed)
+      // After 15 mins (~90% absorbed via exponential kinetics)
       const bac15m = calculateBAC(drinks, physProfile, now + 15 * 60000);
       expect(bac15m).toBeGreaterThan(0);
 
-      // After 30 mins (100% absorbed)
+      // After 30 mins (~99% absorbed, but some metabolism has occurred)
       const bac30m = calculateBAC(drinks, physProfile, now + 30 * 60000);
-      expect(bac30m).toBeGreaterThan(bac15m);
+      expect(bac30m).toBeGreaterThan(0);
+      expect(bac30m).toBeCloseTo(0.026, 2);
     });
 
     it('should metabolize BAC over time', () => {

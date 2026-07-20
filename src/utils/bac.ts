@@ -39,6 +39,10 @@ export const QUICK_DRINK_DEFAULT_ABV = 5.0;             // default ABV percentag
 export const DEFAULT_METABOLISM_RATE = 0.015;           // % BAC reduction per hour (average)
 export const DEFAULT_DISPLAY_UNIT = '%' as const;        // default display unit
 
+// Absorption kinetics (first-order exponential)
+// Higher k = faster absorption (empty stomach ~0.15-0.25, with food ~0.05-0.10)
+export const DEFAULT_ABSORPTION_RATE_K = 0.15;          // min⁻¹ (~63% at 7 min, ~95% at 20 min)
+
 // Date / time formatting
 const MS_PER_HOUR = 3_600_000;
 
@@ -138,7 +142,7 @@ function calculateBACAtTime(pastDrinks: Drink[], profile: Profile, weightInGrams
     let absorptionFactor = 1.0;
     if (isPhysiological) {
       const minutesSinceDrink = (currentTime - drink.timestamp) / (1000 * 60);
-      absorptionFactor = Math.min(1.0, Math.max(0.0, minutesSinceDrink / 30));
+      absorptionFactor = 1.0 - Math.exp(-DEFAULT_ABSORPTION_RATE_K * minutesSinceDrink);
     }
 
     const alcoholGrams = drink.volume * (drink.abv / 100) * ETHANOL_DENSITY * absorptionFactor;
