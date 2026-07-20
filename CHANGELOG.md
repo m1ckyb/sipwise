@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.26] - 2026-07-20
+
+### Added
+- **Local/Self-Hosted Deployment Mode**: Full Docker + PostgreSQL deployment with single codebase, env var toggle (`VITE_API_URL`).
+- **Hono REST API Server**: Multi-user JWT + bcrypt authentication, PostgreSQL schema with `sipwise_` prefixed tables (`server/`).
+- **External REST API**: Home Assistant integration with API key management, idempotency, and PostgreSQL-backed rate limiting.
+- **Sober Alert Cron**: `node-cron` checker replacing `pg_cron` for local mode, with idempotency key cleanup (daily 3AM, 7-day expiry) and rate limit cleanup (hourly).
+- **Docker Compose Orchestration**: PostgreSQL, API server, and Nginx reverse proxy for SPA + API requests.
+- **Frontend Dual-Mode Detection**: `VITE_API_URL` present = local REST API, absent = Supabase.
+- **Password Complexity Validation**: 8+ chars with uppercase, lowercase, and digit requirements via zod.
+- **PostgreSQL-Backed Rate Limiting**: Persistent rate limits using `sipwise_rate_limits` table, replacing in-memory Map.
+- **Graceful Shutdown**: SIGTERM/SIGINT handlers that close HTTP server, stop cron, close DB pool with 10s force timeout.
+- **CSRF Protection**: Origin/Referer header validation middleware.
+- **Structured Logging**: pino JSON logger across all server modules with request ID correlation (`x-request-id`).
+- **Audit Trail**: `sipwise_audit_trail` table and `logAuditEvent()` for signup, login, API key operations.
+- **Zod Request Validation**: Schema validation on all API routes (auth, data, push, apiKeys, api, logs).
+- **Frontend Request Resilience**: 15s AbortController timeouts and retry with exponential backoff for GET requests (2 retries on 5xx/network errors).
+- **Automated Database Backups**: pg_dump sidecar in Docker Compose with 30-day retention.
+- **Configurable bcrypt Rounds**: `BCRYPT_ROUNDS` env var (default 12).
+- **Push Endpoint URL Validation**: zod `.url()` validation on push subscription endpoints.
+- **Docker Build in CI**: Docker Compose build + Trivy security scanning + health check verification.
+- **Docker Security Headers**: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, X-XSS-Protection.
+- **Nginx Hardening**: Proxy timeouts (5s connect, 30s read/write) and security headers.
+- **Container Resource Limits**: pg (512M/1cpu), API (256M/0.5cpu), frontend (128M/0.25cpu).
+- **Frontend Container Healthcheck**: `wget --spider` health check for Nginx.
+- **Production Readiness Audit**: Comprehensive audit report (`AUDIT/2026-07-20_local_deployment_production_readiness.md`).
+
+### Changed
+- JWT secret validation now fails loudly on startup if missing or too short (< 32 chars).
+- CORS restricted to explicit `ALLOWED_ORIGINS` list (defaults to `http://localhost:8080`).
+- Request body size limited to 1MB via Hono `bodyLimit` middleware and Nginx `client_max_body_size`.
+- Health check endpoint now verifies database connectivity.
+- PostgreSQL port no longer exposed to host in docker-compose.yml.
+- Docker Compose JWT_SECRET requires explicit setting (no unsafe default).
+- Frontend `api.ts` fetch requests include AbortController timeout and retry with exponential backoff.
+
+### Fixed
+- Hono TypeScript type errors resolved via shared `Env` type for context variable typing.
+- ESLint config excludes `server/dist` from linting.
+
+### Removed
+- In-memory rate limiter (replaced by PostgreSQL-backed implementation).
+
 ## [0.1.25] - 2026-07-20
 
 ### Changed
