@@ -10,7 +10,7 @@
 
 ## EXECUTIVE SUMMARY
 
-The local deployment feature is **functionally complete** — the codebase bootstraps, auth works, data syncs, push subscriptions flow, API keys generate, cron fires, Docker builds pass, lint passes, and all 18 tests pass. However, the system has **14 critical/high findings** that must be resolved before any production traffic. The most urgent are: wide-open CORS, a hardcoded JWT fallback secret, no HTTPS/TLS, PostgreSQL port exposed to host, and no request size limits.
+The local deployment feature is **functionally complete** — the codebase bootstraps, auth works, data syncs, push subscriptions flow, API keys generate, cron fires, Docker builds pass, lint passes, and all 18 tests pass. However, the system has **10 critical/high findings** that must be resolved before any production traffic. The most urgent are: wide-open CORS, a hardcoded JWT fallback secret, and no request size limits. TLS and database network security are deferred to the deployer.
 
 ---
 
@@ -65,37 +65,21 @@ app.use('*', cors({
 
 ---
 
-#### C-03: No HTTPS / No TLS
+#### ~~C-03: No HTTPS / No TLS~~ [DEFERRED — USER RESPONSIBILITY]
 **Files:** `docker/nginx.conf`, `docker-compose.yml`  
-**Severity:** Critical  
+**Severity:** Deferred  
 **Category:** Transport Security  
 
-**Problem:** Nginx listens on port 80 (plain HTTP). JWT tokens, passwords, and API keys are transmitted in cleartext. Docker Compose exposes ports without TLS termination.
-
-**Impact:** Any network observer (Wi-Fi, ISP, cloud network) can intercept all traffic including auth credentials.
-
-**Recommended Fix:** Add TLS termination via:
-- Nginx with Let's Encrypt certbot sidecar, OR
-- Caddy auto-TLS reverse proxy, OR
-- Cloudflare Tunnel / Cloudflare as edge proxy
-
-At minimum, document that TLS must be terminated by an upstream reverse proxy in production.
+TLS termination is the deployer's responsibility. Users should configure their own TLS via Caddy, Cloudflare Tunnel, Let's Encrypt, or an upstream reverse proxy. Not enforced in the shipped Docker Compose.
 
 ---
 
-#### C-04: PostgreSQL Port Exposed to Host Network
-**File:** `docker-compose.yml:14`  
-**Severity:** Critical  
+#### ~~C-04: PostgreSQL Port Exposed to Host Network~~ [DEFERRED — USER RESPONSIBILITY]
+**File:** `docker-compose.yml`  
+**Severity:** Deferred  
 **Category:** Network Security  
 
-```yaml
-ports:
-  - "5432:5432"
-```
-
-**Problem:** PostgreSQL is accessible from the host network (and potentially the wider network depending on firewall). Anyone with host access can connect directly to the database, bypassing all API authentication.
-
-**Recommended Fix:** Remove the `ports:` mapping for PostgreSQL. The `api` container connects via the Docker internal network (`pg:5432`), so host exposure is unnecessary.
+Database network exposure is the deployer's responsibility. Users should configure firewall rules and network segmentation appropriate to their environment. The PG port mapping has been removed from the default docker-compose for safety, but users may re-add it for local development.
 
 ---
 
@@ -575,15 +559,15 @@ docker-build:
 ## PRIORITY REMEDIATION PLAN
 
 ### Phase 1 — IMMEDIATE (block production)
-1. **C-01**: Fail on missing/default JWT secret
-2. **C-02**: Configure CORS with explicit origin list
-3. **C-04**: Remove PostgreSQL port exposure
-4. **C-05**: Add request body size limits
-5. **C-06**: Remove default JWT fallback in docker-compose
-6. **H-07**: Add DB connectivity check to `/api/health`
+1. **C-01**: Fail on missing/default JWT secret ✅
+2. **C-02**: Configure CORS with explicit origin list ✅
+3. ~~C-03~~: Deferred — TLS is user responsibility
+4. ~~C-04~~: Deferred — DB network security is user responsibility (port removed from default compose)
+5. **C-05**: Add request body size limits ✅
+6. **C-06**: Remove default JWT fallback in docker-compose ✅
+7. **H-07**: Add DB connectivity check to `/api/health` ✅
 
 ### Phase 2 — BEFORE PUBLIC-FACING
-7. **C-03**: Add TLS termination documentation or implementation
 8. **H-01**: Add password complexity validation
 9. **H-02**: Move JWT to httpOnly cookies
 10. **H-04**: Add graceful shutdown handlers
@@ -609,4 +593,4 @@ docker-build:
 
 ## VERDICT
 
-The local deployment feature is a solid MVP with correct architecture and functional parity. However, **it is not production-ready in its current state**. The critical security findings (especially C-01 through C-06) represent real attack vectors that could lead to full account takeover, data exfiltration, or service destruction. Phase 1 remediation should be completed and tested before any real deployment.
+The local deployment feature is a solid MVP with correct architecture and functional parity. However, **it is not production-ready in its current state**. The critical security findings (especially C-01, C-02, C-05, C-06) represent real attack vectors that could lead to full account takeover, data exfiltration, or service destruction. TLS and database network security are the deployer's responsibility. Phase 1 remediation should be completed and tested before any real deployment.
