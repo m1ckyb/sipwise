@@ -2,6 +2,10 @@
 - **Local Sober Notification Timer**: Added a local notification scheduler in `AppContext` that sets a timer when BAC is above zero and triggers a Service Worker notification (`showNotification`) and toast alert when 0.00% BAC is reached.
 
 ### Changed
+- **Dependencies Updated**:
+  - Updated `@supabase/supabase-js` to `2.110.7`.
+  - Updated dev dependencies `eslint` to `10.7.0`, `typescript-eslint` to `8.64.0`, and `@types/node` to `26.1.1`.
+  - Updated GitHub Actions workflows (`actions/setup-node` to `v7`, `actions/upload-artifact` to `v7`, `actions/github-script` to `v9`).
 
 ### Fixed
 - **CI Test Supabase Fallback**: Provided fallback placeholder URL for `createClient` in `src/utils/supabase.ts` so unit tests succeed when environment variables are omitted or withheld (e.g. in PR CI runs).
