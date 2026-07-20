@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
-import type { Drink, Profile } from '../utils/bac';
+import { calculateBAC, calculateTimeToZero, type Drink, type Profile } from '../utils/bac';
 import { supabase } from '../utils/supabase';
 import type { User } from '@supabase/supabase-js';
 
@@ -203,44 +203,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     setIsSyncing(true);
     try {
-      const { data: existing, error: fetchError } = await supabase
-        .from('user_data')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
+      const currentBAC = calculateBAC(drinksRef.current, profileRef.current);
+      const isSober = currentBAC === 0;
 
-      if (fetchError) throw fetchError;
-
-      const mergedDrinks = existing?.drinks
-        ? mergeDrinkArrays(drinksRef.current, existing.drinks)
-        : drinksRef.current;
-      const mergedPresets = existing?.presets
-        ? mergePresetArrays(presetsRef.current, existing.presets)
-        : presetsRef.current;
-
-      const merged = {
+      const payload = {
         id: user.id,
         profile: profileRef.current,
-        drinks: mergedDrinks,
-        presets: mergedPresets,
+        drinks: drinksRef.current,
+        presets: presetsRef.current,
+        is_sober: isSober,
         updated_at: new Date().toISOString(),
       };
 
       const { error } = await supabase
         .from('user_data')
-        .upsert(merged);
+        .upsert(payload);
       
       if (!error) {
-        // Update local state with merged result so other devices' data appears immediately
-        if (mergedDrinks.length !== drinksRef.current.length) {
-          skipNextPushRef.current = true;
-          setDrinks(mergedDrinks);
-        }
-        if (mergedPresets.length !== presetsRef.current.length) {
-          skipNextPushRef.current = true;
-          setPresets(mergedPresets);
-        }
-
         const now = new Date().toLocaleString();
         setLastSynced(now);
         safeSetItem('sipwise_last_synced', now);
@@ -279,17 +258,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
           changed = true;
         }
 
-        const mergedDrinks = data.drinks
+        // On initial pull (when initialPullDone is false), merge local & cloud so pre-login offline drinks aren't lost.
+        // On subsequent pulls, cloud state is authoritative.
+        const mergedDrinks = !initialPullDone.current && data.drinks
           ? mergeDrinkArrays(drinksRef.current, data.drinks)
-          : drinksRef.current;
+          : (data.drinks ?? drinksRef.current);
+
         if (JSON.stringify(mergedDrinks) !== JSON.stringify(drinksRef.current)) {
           setDrinks(mergedDrinks);
           changed = true;
         }
 
-        const mergedPresets = data.presets
+        const mergedPresets = !initialPullDone.current && data.presets
           ? mergePresetArrays(presetsRef.current, data.presets)
-          : presetsRef.current;
+          : (data.presets ?? presetsRef.current);
+
         if (JSON.stringify(mergedPresets) !== JSON.stringify(presetsRef.current)) {
           setPresets(mergedPresets);
           changed = true;
@@ -299,8 +282,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           skipNextPushRef.current = true;
         }
 
-        // If local state contained drinks/presets not yet saved to cloud, push merged result
-        if (data.drinks && mergedDrinks.length > data.drinks.length) {
+        // If local state contained drinks/presets not yet saved to cloud during initial pull, push merged result
+        if (!initialPullDone.current && data.drinks && mergedDrinks.length > data.drinks.length) {
           await pushToCloud();
         }
       } else {
@@ -326,7 +309,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const newDrink: Drink = { ...drink, id: crypto.randomUUID() };
     setDrinks(prev => [...prev, newDrink]);
   }, []);
-  const removeDrink = useCallback((id: string) => setDrinks(prev => prev.filter(d => d.id !== id)), []);
+  const removeDrink = useCallback((id: string) => {
+    setDrinks(prev => prev.filter(d => d.id !== id));
+    showToast('Drink deleted', 'info');
+  }, [showToast]);
   const updateDrink = useCallback((id: string, updates: Partial<Drink>) => {
     setDrinks(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
   }, []);
@@ -337,7 +323,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updatePreset = useCallback((name: string, updates: Partial<Omit<Drink, 'id' | 'timestamp'>>) => {
     setPresets(prev => prev.map(p => p.name === name ? { ...p, ...updates } : p));
   }, []);
-  const clearHistory = useCallback(() => setDrinks([]), []);
+  const clearHistory = useCallback(() => {
+    setDrinks([]);
+    showToast('Drink history cleared', 'info');
+  }, [showToast]);
   const importData = useCallback((data: { profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] }) => {
     if (data.profile) setProfileState(data.profile);
     if (data.drinks) setDrinks(data.drinks);
@@ -418,6 +407,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, drinks, presets]);
+
+  // Schedule local sober notification whenever drinks or profile changes
+  const soberTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (soberTimerRef.current) {
+      clearTimeout(soberTimerRef.current);
+      soberTimerRef.current = null;
+    }
+
+    const currentBAC = calculateBAC(drinks, profile);
+    if (currentBAC <= 0) return;
+
+    const timeToZero = calculateTimeToZero(drinks, profile);
+    if (timeToZero <= 0) return;
+
+    const soberTimeMs = Date.now() + timeToZero * 3600000;
+    const delayMs = Math.max(0, soberTimeMs - Date.now());
+
+    if (delayMs <= 0) return;
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      soberTimerRef.current = setTimeout(async () => {
+        const latestBAC = calculateBAC(drinksRef.current, profileRef.current);
+        if (latestBAC === 0) {
+          try {
+            if ('serviceWorker' in navigator) {
+              const reg = await navigator.serviceWorker.ready;
+              await reg.showNotification('Sober Alert! 🎉', {
+                body: 'Your estimated BAC is now back to 0.00%. You are sober!',
+                icon: '/favicon.svg',
+                badge: '/favicon.svg',
+                vibrate: [100, 50, 100],
+                data: { url: window.location.origin + '/' },
+              } as NotificationOptions);
+            } else {
+              new Notification('Sober Alert! 🎉', {
+                body: 'Your estimated BAC is now back to 0.00%. You are sober!',
+                icon: '/favicon.svg',
+              });
+            }
+            showToast('Sober Alert! Your estimated BAC is back to 0.00%. 🎉', 'success');
+          } catch (e) {
+            console.error('Failed to trigger local sober notification:', e);
+          }
+        }
+      }, delayMs);
+    }
+
+    return () => {
+      if (soberTimerRef.current) {
+        clearTimeout(soberTimerRef.current);
+      }
+    };
+  }, [drinks, profile, showToast]);
 
   const contextValue = useMemo(() => ({
     profile, setProfile,
