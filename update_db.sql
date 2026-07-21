@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.idempotency_keys (
 CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created_at ON public.idempotency_keys(created_at);
 ALTER TABLE public.idempotency_keys ENABLE ROW LEVEL SECURITY;
 
--- Rate Limits Table
+-- Rate Limits Table & Function
 CREATE TABLE IF NOT EXISTS public.rate_limits (
   key text primary key,
   request_count integer default 1,
@@ -39,6 +39,53 @@ CREATE TABLE IF NOT EXISTS public.rate_limits (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rate_limits_window_start ON public.rate_limits(window_start);
+
+CREATE OR REPLACE FUNCTION public.check_rate_limit(
+  p_key text,
+  p_max_requests integer default 60,
+  p_window_seconds integer default 60
+) RETURNS jsonb AS $$
+DECLARE
+  v_now timestamp with time zone := timezone('utc'::text, now());
+  v_record public.rate_limits%rowtype;
+  v_allowed boolean := true;
+  v_current_count integer := 1;
+BEGIN
+  SELECT * INTO v_record FROM public.rate_limits WHERE key = p_key FOR UPDATE;
+
+  IF NOT FOUND THEN
+    INSERT INTO public.rate_limits (key, request_count, window_start)
+    VALUES (p_key, 1, v_now);
+    v_current_count := 1;
+    v_allowed := true;
+  ELSE
+    IF (EXTRACT(epoch FROM (v_now - v_record.window_start))) > p_window_seconds THEN
+      UPDATE public.rate_limits
+      SET request_count = 1, window_start = v_now
+      WHERE key = p_key;
+      v_current_count := 1;
+      v_allowed := true;
+    ELSE
+      IF v_record.request_count >= p_max_requests THEN
+        v_allowed := false;
+        v_current_count := v_record.request_count;
+      ELSE
+        UPDATE public.rate_limits
+        SET request_count = request_count + 1
+        WHERE key = p_key;
+        v_current_count := v_record.request_count + 1;
+        v_allowed := true;
+      END IF;
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'allowed', v_allowed,
+    'count', v_current_count,
+    'max', p_max_requests
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Error Logs Table for APM Stack Traces
 CREATE TABLE IF NOT EXISTS public.error_logs (
