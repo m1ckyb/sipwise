@@ -16,15 +16,20 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
 }
 
 serve(async (req: Request) => {
-  // Prevent unauthorized access: check Cron Secret or Service Role authorization
+  // Prevent unauthorized access: check Cron Secret, Service Role, or Anon Key authorization
   const cronSecret = Deno.env.get('CRON_SECRET');
-  const authHeader = req.headers.get('authorization');
-  const customCronHeader = req.headers.get('x-cron-secret');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+
+  const authHeader = req.headers.get('authorization') || '';
+  const customCronHeader = req.headers.get('x-cron-secret') || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
   const isAuthorized =
-    (cronSecret && (customCronHeader === cronSecret || authHeader === `Bearer ${cronSecret}`)) ||
-    (serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`);
+    (cronSecret && (customCronHeader === cronSecret || token === cronSecret)) ||
+    (serviceRoleKey && token === serviceRoleKey) ||
+    (anonKey && token === anonKey) ||
+    (!cronSecret && !serviceRoleKey);
 
   if (!isAuthorized) {
     return new Response(JSON.stringify({ error: "Unauthorized access" }), {
@@ -85,7 +90,14 @@ serve(async (req: Request) => {
       continue;
     }
 
-    const currentBAC = calculateBAC(user.drinks, user.profile);
+    // Normalize drink timestamps (convert string ISO dates to milliseconds timestamp)
+    const rawDrinks = Array.isArray(user.drinks) ? user.drinks : [];
+    const normalizedDrinks = rawDrinks.map((d: { id?: string; timestamp?: number | string; volume?: number; abv?: number; name?: string }) => ({
+      ...d,
+      timestamp: typeof d.timestamp === 'string' ? new Date(d.timestamp).getTime() : Number(d.timestamp || 0)
+    }));
+
+    const currentBAC = calculateBAC(normalizedDrinks, user.profile);
     const wasSober = user.is_sober ?? true;
     const isSoberNow = currentBAC === 0;
 

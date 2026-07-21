@@ -9,11 +9,16 @@ create table if not exists public.api_keys (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users(id) on delete cascade not null,
   name text not null,
-  key_hash text unique not null,
+  key_hash text unique,
   key_prefix text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   last_used_at timestamp with time zone
 );
+
+-- Migration for existing databases: ensure all required columns exist
+alter table public.api_keys add column if not exists key_hash text;
+alter table public.api_keys add column if not exists key_prefix text;
+alter table public.api_keys add column if not exists last_used_at timestamp with time zone;
 
 -- Performance & Security Indexes
 create index if not exists idx_api_keys_user_id on public.api_keys(user_id);

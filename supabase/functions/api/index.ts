@@ -47,13 +47,35 @@ serve(async (req) => {
     const keyHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
     // 1. Verify API key via key_hash (or fallback to key for backwards compatibility)
-    const { data: apiKeyData, error: apiKeyError } = await supabase
+    let apiKeyData: { id: string; user_id: string } | null = null;
+
+    const { data: hashData, error: hashError } = await supabase
       .from('api_keys')
       .select('id, user_id')
-      .or(`key_hash.eq.${keyHash},key.eq.${apiKey}`)
-      .single();
+      .eq('key_hash', keyHash)
+      .maybeSingle();
 
-    if (apiKeyError || !apiKeyData) {
+    if (hashData) {
+      apiKeyData = hashData;
+    } else if (hashError && (hashError.code === '42703' || hashError.message?.includes('key_hash'))) {
+      // If key_hash column does not exist in user's table, fall back to checking legacy 'key' column
+      const { data: legacyData } = await supabase
+        .from('api_keys')
+        .select('id, user_id')
+        .eq('key', apiKey)
+        .maybeSingle();
+      if (legacyData) apiKeyData = legacyData;
+    } else {
+      // Fallback for legacy unhashed keys
+      const { data: legacyData } = await supabase
+        .from('api_keys')
+        .select('id, user_id')
+        .eq('key', apiKey)
+        .maybeSingle();
+      if (legacyData) apiKeyData = legacyData;
+    }
+
+    if (!apiKeyData) {
       return new Response(
         JSON.stringify({ error: 'Invalid API key' }), 
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }

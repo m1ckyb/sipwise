@@ -1,5 +1,10 @@
 ALTER TABLE public.user_data ADD COLUMN IF NOT EXISTS is_sober boolean default true;
 
+-- Ensure api_keys table columns exist
+ALTER TABLE public.api_keys ADD COLUMN IF NOT EXISTS key_hash text;
+ALTER TABLE public.api_keys ADD COLUMN IF NOT EXISTS key_prefix text;
+ALTER TABLE public.api_keys ADD COLUMN IF NOT EXISTS last_used_at timestamp with time zone;
+
 -- Relational drinks table & performance index
 CREATE TABLE IF NOT EXISTS public.drinks (
   id uuid primary key default gen_random_uuid(),
