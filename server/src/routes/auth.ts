@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db.js';
 import { signToken } from '../middleware/auth.js';
+import { checkRateLimit } from '../middleware/rateLimit.js';
 import { logAuditEvent } from '../utils/audit.js';
 import { logger } from '../utils/logger.js';
 import type { Env } from '../types.js';
@@ -28,6 +29,12 @@ const LoginSchema = z.object({
 const auth = new Hono<Env>();
 
 auth.post('/signup', async (c) => {
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'anon';
+  const rateLimitResult = await checkRateLimit(`rate_limit_signup:${ip}`, 10, 60);
+  if (!rateLimitResult.allowed) {
+    return c.json({ error: 'Too many signup attempts. Please try again later.' }, 429);
+  }
+
   const parsed = SignupSchema.safeParse(await c.req.json());
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0].message }, 400);
@@ -40,16 +47,21 @@ auth.post('/signup', async (c) => {
   }
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+  // Single atomic CTE query creating user and user_data in one transaction
   const { rows } = await db.query(
-    'INSERT INTO sipwise_users (email, password_hash) VALUES ($1, $2) RETURNING id, email',
+    `WITH new_user AS (
+       INSERT INTO sipwise_users (email, password_hash) VALUES ($1, $2)
+       RETURNING id, email
+     ),
+     new_data AS (
+       INSERT INTO sipwise_user_data (id, profile, drinks, presets)
+       SELECT id, NULL, NULL, NULL FROM new_user
+     )
+     SELECT id, email FROM new_user`,
     [email.toLowerCase(), passwordHash],
   );
   const user = rows[0];
-
-  await db.query(
-    'INSERT INTO sipwise_user_data (id, profile, drinks, presets) VALUES ($1, NULL, NULL, NULL)',
-    [user.id],
-  );
 
   await logAuditEvent(user.id, 'signup', { email: user.email }, c.req.header('x-forwarded-for') || undefined);
 
@@ -58,6 +70,12 @@ auth.post('/signup', async (c) => {
 });
 
 auth.post('/login', async (c) => {
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'anon';
+  const rateLimitResult = await checkRateLimit(`rate_limit_login:${ip}`, 15, 60);
+  if (!rateLimitResult.allowed) {
+    return c.json({ error: 'Too many login attempts. Please try again later.' }, 429);
+  }
+
   const parsed = LoginSchema.safeParse(await c.req.json());
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0].message }, 400);

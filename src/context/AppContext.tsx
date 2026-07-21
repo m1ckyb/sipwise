@@ -269,27 +269,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
         data = cloudData;
       }
 
-      if (data) {
+      if (data && typeof data === 'object') {
         let changed = false;
-        if (data.profile && JSON.stringify(data.profile) !== JSON.stringify(profileRef.current)) {
+        if (data.profile && typeof data.profile === 'object' && JSON.stringify(data.profile) !== JSON.stringify(profileRef.current)) {
           setProfileState(data.profile);
           changed = true;
         }
 
+        const validCloudDrinks = Array.isArray(data.drinks) ? data.drinks : null;
         // On initial pull (when initialPullDone is false), merge local & cloud so pre-login offline drinks aren't lost.
         // On subsequent pulls, cloud state is authoritative.
-        const mergedDrinks = !initialPullDone.current && data.drinks
-          ? mergeDrinkArrays(drinksRef.current, data.drinks)
-          : (data.drinks ?? drinksRef.current);
+        const mergedDrinks = !initialPullDone.current && validCloudDrinks
+          ? mergeDrinkArrays(drinksRef.current, validCloudDrinks)
+          : (validCloudDrinks ?? drinksRef.current);
 
         if (JSON.stringify(mergedDrinks) !== JSON.stringify(drinksRef.current)) {
           setDrinks(mergedDrinks);
           changed = true;
         }
 
-        const mergedPresets = !initialPullDone.current && data.presets
-          ? mergePresetArrays(presetsRef.current, data.presets)
-          : (data.presets ?? presetsRef.current);
+        const validCloudPresets = Array.isArray(data.presets) ? data.presets : null;
+        const mergedPresets = !initialPullDone.current && validCloudPresets
+          ? mergePresetArrays(presetsRef.current, validCloudPresets)
+          : (validCloudPresets ?? presetsRef.current);
 
         if (JSON.stringify(mergedPresets) !== JSON.stringify(presetsRef.current)) {
           setPresets(mergedPresets);

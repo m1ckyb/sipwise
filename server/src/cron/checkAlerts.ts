@@ -6,66 +6,78 @@ import { logger } from '../utils/logger.js';
 
 const scheduledTasks: cron.ScheduledTask[] = [];
 
+const CHECK_ALERTS_LOCK_ID = 8675309;
+
 async function checkAlerts() {
   if (!vapidConfigured) return;
 
   try {
-    logger.info('Checking BAC levels for active users');
-
-    const { rows: subscriptions } = await db.query(
-      'SELECT user_id, subscription, endpoint FROM sipwise_push_subscriptions',
-    );
-
-    if (subscriptions.length === 0) return;
-
-    const userIds = [...new Set(subscriptions.map(s => s.user_id).filter(Boolean))];
-    if (userIds.length === 0) return;
-
-    const { rows: users } = await db.query(
-      'SELECT id, profile, drinks, is_sober FROM sipwise_user_data WHERE id = ANY($1)',
-      [userIds],
-    );
-
-    let alertsSent = 0;
-
-    for (const user of users) {
-      if (!user.profile || !user.drinks) continue;
-
-      const profile: Profile = user.profile;
-      const drinks: Drink[] = user.drinks;
-      const currentBAC = calculateBAC(drinks, profile);
-      const wasSober = user.is_sober ?? true;
-      const isSoberNow = currentBAC === 0;
-
-      if (isSoberNow && !wasSober) {
-        const userSubs = subscriptions.filter(s => s.user_id === user.id);
-
-        for (const sub of userSubs) {
-          try {
-            await webpush.sendNotification(
-              sub.subscription,
-              JSON.stringify({
-                title: 'Sober Alert!',
-                body: 'Your estimated BAC is now back to 0.00%. You are sober!',
-              }),
-            );
-            alertsSent++;
-          } catch (err: unknown) {
-            logger.error({ err, endpoint: sub.endpoint }, 'Failed to send push notification');
-            if (err && typeof err === 'object' && 'statusCode' in err && (err as Record<string, unknown>).statusCode === 410) {
-              await db.query('DELETE FROM sipwise_push_subscriptions WHERE endpoint = $1', [sub.endpoint]);
-            }
-          }
-        }
-
-        await db.query('UPDATE sipwise_user_data SET is_sober = true WHERE id = $1', [user.id]);
-      } else if (!isSoberNow && wasSober) {
-        await db.query('UPDATE sipwise_user_data SET is_sober = false WHERE id = $1', [user.id]);
-      }
+    const lockResult = await db.query('SELECT pg_try_advisory_lock($1) as acquired', [CHECK_ALERTS_LOCK_ID]);
+    if (!lockResult.rows[0]?.acquired) {
+      logger.debug('Another instance is currently checking alerts; skipping.');
+      return;
     }
 
-    if (alertsSent > 0) {
-      logger.info({ alertsSent }, 'Sent sober alerts');
+    try {
+      logger.info('Checking BAC levels for active users');
+
+      const { rows: subscriptions } = await db.query(
+        'SELECT user_id, subscription, endpoint FROM sipwise_push_subscriptions',
+      );
+
+      if (subscriptions.length === 0) return;
+
+      const userIds = [...new Set(subscriptions.map(s => s.user_id).filter(Boolean))];
+      if (userIds.length === 0) return;
+
+      const { rows: users } = await db.query(
+        'SELECT id, profile, drinks, is_sober FROM sipwise_user_data WHERE id = ANY($1)',
+        [userIds],
+      );
+
+      let alertsSent = 0;
+
+      for (const user of users) {
+        if (!user.profile || !user.drinks) continue;
+
+        const profile: Profile = user.profile;
+        const drinks: Drink[] = user.drinks;
+        const currentBAC = calculateBAC(drinks, profile);
+        const wasSober = user.is_sober ?? true;
+        const isSoberNow = currentBAC === 0;
+
+        if (isSoberNow && !wasSober) {
+          const userSubs = subscriptions.filter(s => s.user_id === user.id);
+
+          for (const sub of userSubs) {
+            try {
+              await webpush.sendNotification(
+                sub.subscription,
+                JSON.stringify({
+                  title: 'Sober Alert!',
+                  body: 'Your estimated BAC is now back to 0.00%. You are sober!',
+                }),
+              );
+              alertsSent++;
+            } catch (err: unknown) {
+              logger.error({ err, endpoint: sub.endpoint }, 'Failed to send push notification');
+              if (err && typeof err === 'object' && 'statusCode' in err && (err as Record<string, unknown>).statusCode === 410) {
+                await db.query('DELETE FROM sipwise_push_subscriptions WHERE endpoint = $1', [sub.endpoint]);
+              }
+            }
+          }
+
+          await db.query('UPDATE sipwise_user_data SET is_sober = true WHERE id = $1', [user.id]);
+        } else if (!isSoberNow && wasSober) {
+          await db.query('UPDATE sipwise_user_data SET is_sober = false WHERE id = $1', [user.id]);
+        }
+      }
+
+      if (alertsSent > 0) {
+        logger.info({ alertsSent }, 'Sent sober alerts');
+      }
+    } finally {
+      await db.query('SELECT pg_advisory_unlock($1)', [CHECK_ALERTS_LOCK_ID]).catch(() => {});
     }
   } catch (err) {
     logger.error({ err }, 'Error checking alerts');

@@ -1,18 +1,25 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db.js';
+import { checkRateLimit } from '../middleware/rateLimit.js';
 import type { Env } from '../types.js';
 
 const LogSchema = z.object({
-  error_message: z.string().min(1),
-  stack_trace: z.string().optional(),
-  source: z.string().optional(),
-  context: z.any().optional(),
+  error_message: z.string().min(1).max(500, 'Error message exceeds max length'),
+  stack_trace: z.string().max(4096, 'Stack trace exceeds max length').optional(),
+  source: z.string().max(50, 'Source name exceeds max length').optional(),
+  context: z.record(z.unknown()).optional(),
 });
 
 const logs = new Hono<Env>();
 
 logs.post('/', async (c) => {
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'anon';
+  const rateLimitResult = await checkRateLimit(`rate_limit_logs:${ip}`, 30, 60);
+  if (!rateLimitResult.allowed) {
+    return c.json({ error: 'Too many log submissions. Rate limit exceeded.' }, 429);
+  }
+
   const authHeader = c.req.header('Authorization');
   let userId: string | null = null;
 
@@ -41,3 +48,4 @@ logs.post('/', async (c) => {
 });
 
 export default logs;
+

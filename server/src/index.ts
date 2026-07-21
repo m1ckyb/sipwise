@@ -32,10 +32,10 @@ app.use('*', csrfProtection);
 app.get('/api/health', async (c) => {
   try {
     await db.query('SELECT 1');
-    return c.json({ status: 'ok', db: 'ok', version: '0.1.25' });
+    return c.json({ status: 'ok', db: 'ok', version: '0.1.26' });
   } catch (err) {
     logger.error({ err }, 'Health check failed');
-    return c.json({ status: 'degraded', db: 'error', version: '0.1.25' }, 503);
+    return c.json({ status: 'degraded', db: 'error', version: '0.1.26' }, 503);
   }
 });
 
@@ -93,3 +93,13 @@ async function shutdown(signal: string) {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+
+process.on('unhandledRejection', (reason) => {
+  logger.error({ reason }, 'Unhandled Promise Rejection');
+});
+
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'Uncaught Exception');
+  process.exit(1);
+});
+

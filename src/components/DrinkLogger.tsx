@@ -77,9 +77,9 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
   };
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="drink-logger-title">
       <div className="modal-content card" key={formKey}>
-        <h2>{editDrink ? 'Edit Drink' : 'Add Drink'}</h2>
+        <h2 id="drink-logger-title">{editDrink ? 'Edit Drink' : 'Add Drink'}</h2>
 
         <div className="time-selector">
           <label>Time of Consumption</label>
@@ -125,6 +125,7 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
               <input 
                 id="custom-drink-name"
                 type="text" 
+                maxLength={200}
                 value={customDrink.name} 
                 onChange={e => setCustomDrink({...customDrink, name: e.target.value})} 
                 placeholder="e.g. Cocktail"
@@ -136,6 +137,8 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
               <input 
                 id="custom-drink-volume"
                 type="number" 
+                min="1"
+                max="5000"
                 value={customDrink.volume} 
                 onChange={e => setCustomDrink({...customDrink, volume: Number(e.target.value)})} 
                 required
@@ -147,6 +150,8 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
                 id="custom-drink-abv"
                 type="number" 
                 step="0.1"
+                min="0"
+                max="100"
                 value={customDrink.abv} 
                 onChange={e => setCustomDrink({...customDrink, abv: Number(e.target.value)})} 
                 required
@@ -157,6 +162,8 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
               <input 
                 id="custom-drink-calories"
                 type="number" 
+                min="0"
+                max="5000"
                 value={customDrink.calories} 
                 onChange={e => {
                   const val = e.target.value;

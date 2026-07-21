@@ -1,9 +1,11 @@
 import pg from 'pg';
 import { logger } from './utils/logger.js';
 
+const maxPoolSize = parseInt(process.env.DB_POOL_MAX || '10', 10);
+
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 10,
+  max: maxPoolSize,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
 });

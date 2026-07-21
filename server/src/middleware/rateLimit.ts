@@ -1,32 +1,40 @@
-import { db } from '../db.js';
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+
+const memoryStore = new Map<string, RateLimitEntry>();
+const CLEANUP_INTERVAL_MS = 60_000;
+let lastCleanup = Date.now();
+
+function purgeExpiredEntries() {
+  const now = Date.now();
+  if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
+  lastCleanup = now;
+  for (const [key, entry] of memoryStore.entries()) {
+    if (entry.resetAt <= now) {
+      memoryStore.delete(key);
+    }
+  }
+}
 
 export async function checkRateLimit(
   key: string,
   maxRequests = 60,
   windowSeconds = 60,
 ): Promise<{ allowed: boolean; count: number; max: number }> {
-  const windowStart = new Date(Date.now() - windowSeconds * 1000);
+  purgeExpiredEntries();
+  const now = Date.now();
+  const windowMs = windowSeconds * 1000;
+  const entry = memoryStore.get(key);
 
-  // Purge expired entries (batch cleanup)
-  await db.query('DELETE FROM sipwise_rate_limits WHERE window_start < $1', [windowStart]);
+  if (!entry || entry.resetAt <= now) {
+    const newEntry = { count: 1, resetAt: now + windowMs };
+    memoryStore.set(key, newEntry);
+    return { allowed: true, count: 1, max: maxRequests };
+  }
 
-  // Increment or insert — if the window expired, reset count to 1
-  const { rows } = await db.query(
-    `INSERT INTO sipwise_rate_limits (key, request_count, window_start)
-     VALUES ($1, 1, now())
-     ON CONFLICT (key) DO UPDATE SET
-       request_count = CASE
-         WHEN sipwise_rate_limits.window_start < $2 THEN 1
-         ELSE sipwise_rate_limits.request_count + 1
-       END,
-       window_start = CASE
-         WHEN sipwise_rate_limits.window_start < $2 THEN now()
-         ELSE sipwise_rate_limits.window_start
-       END
-     RETURNING request_count`,
-    [key, windowStart],
-  );
-
-  const count: number = rows[0].request_count;
-  return { allowed: count <= maxRequests, count, max: maxRequests };
+  entry.count += 1;
+  return { allowed: entry.count <= maxRequests, count: entry.count, max: maxRequests };
 }
+
