@@ -1,4 +1,6 @@
 ### Added
+- **Production Readiness Audit Report**: Added comprehensive Principal Engineer audit report (`AUDIT/2026-07-21_production_readiness_audit.md`) assessing security, database, backend architecture, frontend, infrastructure, and reliability risks.
+
 
 ### Changed
 - **Edge Function Authorization (`check-alerts`)**: Allowed Authorization with `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, or `CRON_SECRET` so `pg_cron` invocations pass cleanly without 401 Unauthorized errors.
