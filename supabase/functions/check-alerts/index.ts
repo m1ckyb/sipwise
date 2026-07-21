@@ -101,10 +101,15 @@ serve(async (req: Request) => {
     const wasSober = user.is_sober ?? true;
     const isSoberNow = currentBAC === 0;
 
-    console.log(`User ${user.id} -> currentBAC: ${currentBAC}, wasSober: ${wasSober}, isSoberNow: ${isSoberNow}`);
+    const mostRecentDrinkTime = normalizedDrinks.length > 0
+      ? Math.max(...normalizedDrinks.map((d: { timestamp: number }) => d.timestamp))
+      : 0;
+    const hasRecentDrink = (Date.now() - mostRecentDrinkTime) < 24 * 3600000;
 
-    // State transition: user became sober
-    if (isSoberNow && !wasSober) {
+    console.log(`User ${user.id} -> currentBAC: ${currentBAC}, wasSober: ${wasSober}, isSoberNow: ${isSoberNow}, hasRecentDrink: ${hasRecentDrink}`);
+
+    // State transition: user became sober (or was drinking within 24h but is_sober wasn't flipped to false yet)
+    if (isSoberNow && (!wasSober || (hasRecentDrink && user.is_sober === null))) {
       console.log(`User ${user.id} just became sober! Sending alert...`);
       
       const userSubs = subscriptionsData.filter(sub => sub.user_id === user.id);

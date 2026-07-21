@@ -451,43 +451,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
       soberTimerRef.current = null;
     }
 
+    if (drinks.length === 0) return;
+
     const currentBAC = calculateBAC(drinks, profile);
-    if (currentBAC <= 0) return;
-
     const timeToZero = calculateTimeToZero(drinks, profile);
-    if (timeToZero <= 0) return;
+    const mostRecentDrinkTime = Math.max(
+      ...drinks.map(d => (typeof d.timestamp === 'string' ? new Date(d.timestamp).getTime() : d.timestamp))
+    );
 
-    const soberTimeMs = Date.now() + timeToZero * 3600000;
-    const delayMs = Math.max(0, soberTimeMs - Date.now());
+    const lastNotifiedSession = Number(localStorage.getItem('sipwise_last_sober_notified_time') || 0);
 
-    if (delayMs <= 0) return;
-
-    if ('Notification' in window && Notification.permission === 'granted') {
-      soberTimerRef.current = setTimeout(async () => {
-        const latestBAC = calculateBAC(drinksRef.current, profileRef.current);
-        if (latestBAC === 0) {
-          try {
-            if ('serviceWorker' in navigator) {
-              const reg = await navigator.serviceWorker.ready;
-              await reg.showNotification('Sober Alert! 🎉', {
-                body: 'Your estimated BAC is now back to 0.00%. You are sober!',
-                icon: '/favicon.svg',
-                badge: '/favicon.svg',
-                vibrate: [100, 50, 100],
-                data: { url: window.location.origin + '/' },
-              } as NotificationOptions);
-            } else {
-              new Notification('Sober Alert! 🎉', {
-                body: 'Your estimated BAC is now back to 0.00%. You are sober!',
-                icon: '/favicon.svg',
-              });
-            }
-            showToast('Sober Alert! Your estimated BAC is back to 0.00%. 🎉', 'success');
-          } catch (e) {
-            console.error('Failed to trigger local sober notification:', e);
-          }
+    const triggerAlert = async () => {
+      try {
+        localStorage.setItem('sipwise_last_sober_notified_time', String(Date.now()));
+        if ('serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.ready;
+          await reg.showNotification('Sober Alert! 🎉', {
+            body: 'Your estimated BAC is now back to 0.00%. You are sober!',
+            icon: '/favicon.svg',
+            badge: '/favicon.svg',
+            vibrate: [100, 50, 100],
+            data: { url: window.location.origin + '/' },
+          } as NotificationOptions);
+        } else if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Sober Alert! 🎉', {
+            body: 'Your estimated BAC is now back to 0.00%. You are sober!',
+            icon: '/favicon.svg',
+          });
         }
-      }, delayMs);
+        showToast('Sober Alert! Your estimated BAC is back to 0.00%. 🎉', 'success');
+      } catch (e) {
+        console.error('Failed to trigger local sober notification:', e);
+      }
+    };
+
+    // 1. If BAC is 0, but user had drinks within the last 24h that haven't been notified yet:
+    const isRecentDrink = (Date.now() - mostRecentDrinkTime) < 24 * 3600000;
+    if (currentBAC === 0 && isRecentDrink && mostRecentDrinkTime > lastNotifiedSession) {
+      triggerAlert();
+      return;
+    }
+
+    // 2. If BAC > 0, schedule timer for remaining time until BAC is 0
+    if (currentBAC > 0 && timeToZero > 0) {
+      const soberTimeMs = Date.now() + timeToZero * 3600000;
+      const delayMs = Math.max(0, soberTimeMs - Date.now());
+
+      if (delayMs > 0 && 'Notification' in window && Notification.permission === 'granted') {
+        soberTimerRef.current = setTimeout(async () => {
+          const latestBAC = calculateBAC(drinksRef.current, profileRef.current);
+          if (latestBAC === 0) {
+            triggerAlert();
+          }
+        }, delayMs);
+      }
     }
 
     return () => {

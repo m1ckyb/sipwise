@@ -55,23 +55,23 @@ create index if not exists idx_push_subscriptions_user_id on public.push_subscri
 -- Enable Row Level Security
 alter table public.push_subscriptions enable row level security;
 
--- Restrict inserts to authenticated users only (prevents anonymous spam)
-create policy "Allow insert for authenticated users only"
+-- Allow devices/users to manage push subscriptions
+create policy "Allow insert for push subscriptions"
   on public.push_subscriptions for insert
-  with check (auth.uid() is not null and auth.uid() = user_id);
+  with check (user_id is null or auth.uid() = user_id or auth.uid() is null);
 
--- Allow users to manage their own subscriptions
 create policy "Allow select access for owner"
   on public.push_subscriptions for select
-  using (auth.uid() = user_id);
+  using (user_id is null or auth.uid() = user_id or auth.uid() is null);
 
 create policy "Allow update access for owner"
   on public.push_subscriptions for update
-  using (auth.uid() = user_id);
+  using (user_id is null or auth.uid() = user_id or auth.uid() is null)
+  with check (user_id is null or auth.uid() = user_id or auth.uid() is null);
 
 create policy "Allow delete access for owner"
   on public.push_subscriptions for delete
-  using (auth.uid() = user_id);
+  using (user_id is null or auth.uid() = user_id or auth.uid() is null);
 
 
 -- ============================================================
