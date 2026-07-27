@@ -96,6 +96,8 @@ api.get('/bac', async (c) => {
     recent_drinks_24h_count: recentDrinks24h.length,
     last_drink_time: parsedDrinks.length > 0 ? new Date(parsedDrinks[0].timestamp).toISOString() : null,
     unit: profile.displayUnit || '%',
+    app_mode: (profile as unknown as Record<string, unknown>).appMode || 'normal',
+    inventory: (profile as unknown as Record<string, unknown>).inventory || [],
     drinks: parsedDrinks.slice(0, limit).map(d => ({
       ...d,
       calories: d.calories ?? estimateCalories(d.volume, d.abv),
