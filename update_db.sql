@@ -101,8 +101,16 @@ CREATE TABLE IF NOT EXISTS public.error_logs (
 CREATE INDEX IF NOT EXISTS idx_error_logs_created_at ON public.error_logs(created_at desc);
 ALTER TABLE public.error_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE INDEX IF NOT EXISTS idx_error_logs_user_id ON public.error_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_sipwise_error_logs_user_id ON public.sipwise_error_logs(user_id);
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'error_logs') THEN
+    CREATE INDEX IF NOT EXISTS idx_error_logs_user_id ON public.error_logs(user_id);
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'sipwise_error_logs') THEN
+    CREATE INDEX IF NOT EXISTS idx_sipwise_error_logs_user_id ON public.sipwise_error_logs(user_id);
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.sipwise_token_blacklist (
   token text primary key,
