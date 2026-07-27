@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.28] - 2026-07-27
+
+### Changed
+- Updated dependencies (`recharts`, `aquasecurity/trivy-action`, `docker/setup-buildx-action`).
+- Updated devDependencies (`eslint`, `typescript-eslint`, `@vitejs/plugin-react`, `globals`).
+
 ## [0.1.27] - 2026-07-22
 
 ### Added
