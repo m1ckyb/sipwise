@@ -15,6 +15,10 @@ export const csrfProtection: MiddlewareHandler = async (c, next) => {
   const origin = c.req.header('origin');
   const referer = c.req.header('referer');
 
+  if (!origin && !referer) {
+    return c.json({ error: 'CSRF validation failed: missing Origin and Referer headers' }, 403);
+  }
+
   if (origin) {
     try {
       const originUrl = new URL(origin);

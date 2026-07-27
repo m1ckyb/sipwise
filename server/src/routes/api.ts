@@ -40,7 +40,10 @@ async function authenticateApiKey(c: Request): Promise<{ userId: string; keyId: 
   );
   if (rows.length === 0) return null;
 
-  db.query('UPDATE sipwise_api_keys SET last_used_at = now() WHERE id = $1', [rows[0].id]).then();
+  db.query('UPDATE sipwise_api_keys SET last_used_at = now() WHERE id = $1', [rows[0].id])
+    .catch(err => {
+      console.error('[SipWise] Failed to update api key last_used_at:', err);
+    });
 
   return { userId: rows[0].user_id, keyId: rows[0].id };
 }
@@ -187,7 +190,9 @@ api.post('/bac', async (c) => {
     db.query(
       'INSERT INTO sipwise_idempotency_keys (key, user_id, response_body) VALUES ($1, $2, $3) ON CONFLICT (key) DO NOTHING',
       [idempotencyKey, auth.userId, JSON.stringify(responsePayload)],
-    ).then();
+    ).catch(err => {
+      console.error('[SipWise] Failed to save idempotency key response:', err);
+    });
   }
 
   return c.json(responsePayload, { headers });

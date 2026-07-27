@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db.js';
-import { signToken } from '../middleware/auth.js';
-import { checkRateLimit } from '../middleware/rateLimit.js';
+import { signToken, authMiddleware } from '../middleware/auth.js';
+import { checkRateLimit, getClientIp } from '../middleware/rateLimit.js';
 import { logAuditEvent } from '../utils/audit.js';
 import { logger } from '../utils/logger.js';
 import type { Env } from '../types.js';
@@ -29,7 +29,7 @@ const LoginSchema = z.object({
 const auth = new Hono<Env>();
 
 auth.post('/signup', async (c) => {
-  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'anon';
+  const ip = getClientIp(c);
   const rateLimitResult = await checkRateLimit(`rate_limit_signup:${ip}`, 10, 60);
   if (!rateLimitResult.allowed) {
     return c.json({ error: 'Too many signup attempts. Please try again later.' }, 429);
@@ -70,7 +70,7 @@ auth.post('/signup', async (c) => {
 });
 
 auth.post('/login', async (c) => {
-  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'anon';
+  const ip = getClientIp(c);
   const rateLimitResult = await checkRateLimit(`rate_limit_login:${ip}`, 15, 60);
   if (!rateLimitResult.allowed) {
     return c.json({ error: 'Too many login attempts. Please try again later.' }, 429);
@@ -99,7 +99,7 @@ auth.post('/login', async (c) => {
   return c.json({ token, user: { id: user.id, email: user.email } });
 });
 
-auth.get('/me', async (c) => {
+auth.get('/me', authMiddleware, async (c) => {
   const userId = c.get('userId') as string;
   const { rows } = await db.query('SELECT id, email FROM sipwise_users WHERE id = $1', [userId]);
   if (rows.length === 0) return c.json({ error: 'User not found' }, 404);
