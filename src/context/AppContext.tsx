@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
-import { calculateBAC, calculateTimeToZero, type Drink, type Profile } from '../utils/bac';
+import { calculateBAC, calculateTimeToZero, type Drink, type Profile, type InventoryItem } from '../utils/bac';
 import { supabase } from '../utils/supabase';
 import type { User } from '@supabase/supabase-js';
 import { isLocalMode } from '../utils/mode';
@@ -16,6 +16,11 @@ interface AppContextType {
   addPreset: (preset: Omit<Drink, 'id' | 'timestamp'>) => void;
   removePreset: (name: string) => void;
   updatePreset: (name: string, updates: Partial<Omit<Drink, 'id' | 'timestamp'>>) => void;
+  inventory: InventoryItem[];
+  addInventoryItem: (item: Omit<InventoryItem, 'id' | 'remainingVolume'>) => void;
+  removeInventoryItem: (id: string) => void;
+  updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => void;
+  consumeFromInventory: (id: string, volume: number) => boolean;
   clearHistory: () => void;
   importData: (data: { profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] }) => void;
   user: User | null;
@@ -162,9 +167,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return DEFAULT_PRESETS;
   });
 
+  const [inventory, setInventory] = useState<InventoryItem[]>(() => {
+    const saved = localStorage.getItem('sipwise_inventory');
+    try {
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    const profileSaved = localStorage.getItem('sipwise_profile');
+    try {
+      if (profileSaved) {
+        const p = JSON.parse(profileSaved);
+        if (p.inventory) return p.inventory;
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
+
   const profileRef = useRef(profile);
   const drinksRef = useRef(drinks);
   const presetsRef = useRef(presets);
+  const inventoryRef = useRef(inventory);
   const skipNextPushRef = useRef(false);
 
   useEffect(() => {
@@ -178,6 +199,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     presetsRef.current = presets;
   }, [presets]);
+
+  useEffect(() => {
+    inventoryRef.current = inventory;
+  }, [inventory]);
 
   // Derive storage warning from drinks length (declared after drinks)
   const storageWarning = useMemo(() => {
@@ -273,6 +298,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         let changed = false;
         if (data.profile && typeof data.profile === 'object' && JSON.stringify(data.profile) !== JSON.stringify(profileRef.current)) {
           setProfileState(data.profile);
+          if ('inventory' in data.profile && Array.isArray(data.profile.inventory)) {
+            setInventory(data.profile.inventory);
+          } else {
+            setInventory([]);
+          }
           changed = true;
         }
 
@@ -343,12 +373,129 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updatePreset = useCallback((name: string, updates: Partial<Omit<Drink, 'id' | 'timestamp'>>) => {
     setPresets(prev => prev.map(p => p.name === name ? { ...p, ...updates } : p));
   }, []);
+  const addInventoryItem = useCallback((item: Omit<InventoryItem, 'id' | 'remainingVolume'>) => {
+    const newItem: InventoryItem = {
+      ...item,
+      id: crypto.randomUUID(),
+      remainingVolume: item.unitVolume,
+    };
+    setInventory(prev => {
+      const next = [...prev, newItem];
+      safeSetItem('sipwise_inventory', JSON.stringify(next));
+      setProfileState(p => {
+        const updated = { ...p, inventory: next };
+        safeSetItem('sipwise_profile', JSON.stringify(updated));
+        return updated;
+      });
+      return next;
+    });
+  }, []);
+  const removeInventoryItem = useCallback((id: string) => {
+    setInventory(prev => {
+      const next = prev.filter(item => item.id !== id);
+      safeSetItem('sipwise_inventory', JSON.stringify(next));
+      setProfileState(p => {
+        const updated = { ...p, inventory: next };
+        safeSetItem('sipwise_profile', JSON.stringify(updated));
+        return updated;
+      });
+      return next;
+    });
+  }, []);
+  const updateInventoryItem = useCallback((id: string, updates: Partial<InventoryItem>) => {
+    setInventory(prev => {
+      const next = prev.map(item => {
+        if (item.id !== id) return item;
+        const updatedItem = { ...item, ...updates };
+        if (updates.unitVolume !== undefined || updates.type !== undefined) {
+          updatedItem.remainingVolume = Math.min(updatedItem.remainingVolume, updatedItem.unitVolume);
+        }
+        return updatedItem;
+      });
+      safeSetItem('sipwise_inventory', JSON.stringify(next));
+      setProfileState(p => {
+        const updated = { ...p, inventory: next };
+        safeSetItem('sipwise_profile', JSON.stringify(updated));
+        return updated;
+      });
+      return next;
+    });
+  }, []);
+  const consumeFromInventory = useCallback((id: string, volume: number): boolean => {
+    let success = false;
+    setInventory(prev => {
+      let isFound = false;
+      const next = prev.map(item => {
+        if (item.id !== id) return item;
+        isFound = true;
+        
+        if (item.type === 'individual') {
+          const unitsToDeduct = Math.max(1, Math.round(volume / item.unitVolume));
+          if (item.quantity >= unitsToDeduct) {
+            success = true;
+            return { ...item, quantity: item.quantity - unitsToDeduct };
+          }
+          return item;
+        } else {
+          let remainingToDeduct = volume;
+          let currentQty = item.quantity;
+          let currentRemaining = item.remainingVolume;
+          
+          if (currentRemaining >= remainingToDeduct) {
+            currentRemaining -= remainingToDeduct;
+            remainingToDeduct = 0;
+          } else {
+            remainingToDeduct -= currentRemaining;
+            currentRemaining = 0;
+          }
+          
+          while (remainingToDeduct > 0 && currentQty > 0) {
+            currentQty -= 1;
+            currentRemaining = item.unitVolume;
+            if (currentRemaining >= remainingToDeduct) {
+              currentRemaining -= remainingToDeduct;
+              remainingToDeduct = 0;
+            } else {
+              remainingToDeduct -= currentRemaining;
+              currentRemaining = 0;
+            }
+          }
+          
+          if (remainingToDeduct === 0 || (item.quantity > 0 && currentQty >= 0)) {
+            success = true;
+            return {
+              ...item,
+              quantity: currentQty,
+              remainingVolume: currentRemaining
+            };
+          }
+          return item;
+        }
+      });
+      
+      if (success && isFound) {
+        safeSetItem('sipwise_inventory', JSON.stringify(next));
+        setProfileState(p => {
+          const updated = { ...p, inventory: next };
+          safeSetItem('sipwise_profile', JSON.stringify(updated));
+          return updated;
+        });
+      }
+      return next;
+    });
+    return success;
+  }, []);
   const clearHistory = useCallback(() => {
     setDrinks([]);
     showToast('Drink history cleared', 'info');
   }, [showToast]);
   const importData = useCallback((data: { profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] }) => {
-    if (data.profile) setProfileState(data.profile);
+    if (data.profile) {
+      setProfileState(data.profile);
+      if (data.profile.inventory) {
+        setInventory(data.profile.inventory);
+      }
+    }
     if (data.drinks) setDrinks(data.drinks);
     if (data.presets) setPresets(data.presets);
   }, []);
@@ -520,6 +667,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     profile, setProfile,
     drinks, addDrink, removeDrink, updateDrink,
     presets, addPreset, removePreset, updatePreset,
+    inventory, addInventoryItem, removeInventoryItem, updateInventoryItem, consumeFromInventory,
     clearHistory,
     importData,
     user, lastSynced, isSyncing, pushError,
@@ -527,6 +675,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     storageWarning, toasts, showToast,
   }), [profile, setProfile, drinks, addDrink, removeDrink, updateDrink,
       presets, addPreset, removePreset, updatePreset,
+      inventory, addInventoryItem, removeInventoryItem, updateInventoryItem, consumeFromInventory,
       clearHistory, importData,
       user, lastSynced, isSyncing, pushError, storageWarning, toasts,
       showToast, pullFromCloud, pushToCloud, signOut]);

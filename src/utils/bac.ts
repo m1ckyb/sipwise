@@ -63,12 +63,25 @@ export interface Profile {
   height: number; // cm
   age: number; // years
   absorptionModel?: 'instant' | 'physiological'; // default instant (standard Widmark baseline)
+  appMode?: 'normal' | 'inventory'; // app mode (normal or inventory-based stock tracking)
   quickDrink?: {
     name: string;
     volume: number;
     abv: number;
     calories?: number;
   };
+  inventory?: InventoryItem[];
+}
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  abv: number;
+  type: 'container' | 'individual'; // container: spirits/wine; individual: beer cans/bottles
+  unitVolume: number; // volume per unit (e.g. 1125ml or 375ml)
+  quantity: number; // count of whole units remaining
+  remainingVolume: number; // ml remaining in the active container
+  calories?: number; // optional kcal
 }
 
 /**

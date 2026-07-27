@@ -12,6 +12,7 @@ SipWise is a Blood Alcohol Content (BAC) calculator and consumption tracker web 
 - **History Tracking:** View a chronological log of your drinks.
 - **Sober Notifications:** Automatic local and Web Push alerts when your BAC reaches 0.00%.
 - **Calorie Tracking:** Tracks calorie intake for each drink with optional manual override or smart heuristic estimations based on drink type (beer, wine, spirit).
+- **Inventory Stock Mode:** Track your stock/inventory of drinks (e.g., vodka bottles, beer cans). Choose from inventory when logging a drink to automatically deduct remaining volumes or quantities. Toggle modes in settings.
 - **BAC Graph:** Visual representation of your BAC over time.
 - **PWA Support:** Installable on mobile and desktop for offline use.
 - **Dual Deployment:** Run fully self-hosted with Docker + PostgreSQL, or use Supabase cloud.

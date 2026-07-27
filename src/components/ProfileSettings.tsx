@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { useAppContext } from '../context/AppContext';
 import pkg from '../../package.json';
+import AppModePanel from './profile/AppModePanel';
 import BodyMetricsForm from './profile/BodyMetricsForm';
 import MetabolismPanel from './profile/MetabolismPanel';
 import PresetManager from './profile/PresetManager';
@@ -26,6 +27,7 @@ function ProfileSettings() {
       )}
       
       <div className="card settings-card">
+        <AppModePanel />
         <BodyMetricsForm />
         <MetabolismPanel />
         <PresetManager />

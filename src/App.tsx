@@ -9,6 +9,7 @@ import type { Drink } from './utils/bac';
 const History = lazy(() => import('./components/History'));
 const ProfileSettings = lazy(() => import('./components/ProfileSettings'));
 const DrinkLogger = lazy(() => import('./components/DrinkLogger'));
+const InventoryManager = lazy(() => import('./components/InventoryManager'));
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -48,6 +49,7 @@ function App() {
             <Dashboard onAddClick={() => openLogger()} />
           )}
           {currentView === 'history' && <History onEditClick={openLogger} />}
+          {currentView === 'inventory' && <InventoryManager />}
           {currentView === 'profile' && <ProfileSettings />}
           <DrinkLogger
             isOpen={isLoggerOpen}

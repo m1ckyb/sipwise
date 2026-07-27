@@ -1,6 +1,7 @@
 import { memo } from 'react';
+import { useAppContext } from '../context/AppContext';
 
-export type View = 'dashboard' | 'history' | 'profile';
+export type View = 'dashboard' | 'history' | 'inventory' | 'profile';
 
 interface NavBarProps {
   currentView: View;
@@ -8,6 +9,9 @@ interface NavBarProps {
 }
 
 const NavBar = memo(function NavBar({ currentView, setView }: NavBarProps) {
+  const { profile } = useAppContext();
+  const showInventory = profile.appMode === 'inventory';
+
   return (
     <nav className="navbar">
       <button 
@@ -16,6 +20,14 @@ const NavBar = memo(function NavBar({ currentView, setView }: NavBarProps) {
       >
         Dashboard
       </button>
+      {showInventory && (
+        <button 
+          className={currentView === 'inventory' ? 'active' : ''} 
+          onClick={() => setView('inventory')}
+        >
+          Inventory
+        </button>
+      )}
       <button 
         className={currentView === 'history' ? 'active' : ''} 
         onClick={() => setView('history')}
