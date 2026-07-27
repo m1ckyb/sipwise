@@ -95,6 +95,9 @@ CREATE TABLE IF NOT EXISTS sipwise_error_logs (
 CREATE INDEX IF NOT EXISTS idx_error_logs_created_at
   ON sipwise_error_logs(created_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_error_logs_user_id
+  ON sipwise_error_logs(user_id);
+
 -- ============================================================
 -- 8. Audit Trail (security and compliance logging)
 -- ============================================================
@@ -131,3 +134,15 @@ CREATE OR REPLACE TRIGGER set_push_subscriptions_updated_at
   BEFORE UPDATE ON sipwise_push_subscriptions
   FOR EACH ROW
   EXECUTE FUNCTION handle_updated_at();
+
+-- ============================================================
+-- 10. Token Blacklist (for JWT session invalidation)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS sipwise_token_blacklist (
+  token TEXT PRIMARY KEY,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires_at
+  ON sipwise_token_blacklist(expires_at);

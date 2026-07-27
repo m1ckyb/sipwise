@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db.js';
-import { signToken, authMiddleware } from '../middleware/auth.js';
+import { signToken, authMiddleware, verifyToken } from '../middleware/auth.js';
 import { checkRateLimit, getClientIp } from '../middleware/rateLimit.js';
 import { logAuditEvent } from '../utils/audit.js';
 import { logger } from '../utils/logger.js';
@@ -104,6 +104,26 @@ auth.get('/me', authMiddleware, async (c) => {
   const { rows } = await db.query('SELECT id, email FROM sipwise_users WHERE id = $1', [userId]);
   if (rows.length === 0) return c.json({ error: 'User not found' }, 404);
   return c.json({ user: rows[0] });
+});
+
+auth.post('/logout', authMiddleware, async (c) => {
+  const authHeader = c.req.header('Authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    try {
+      const decoded = verifyToken(token);
+      const expiresAt = new Date((decoded as unknown as { exp: number }).exp * 1000);
+      await db.query(
+        'INSERT INTO sipwise_token_blacklist (token, expires_at) VALUES ($1, $2) ON CONFLICT (token) DO NOTHING',
+        [token, expiresAt.toISOString()]
+      );
+      const userId = c.get('userId') as string;
+      await logAuditEvent(userId, 'logout', { token_prefix: token.slice(0, 10) });
+    } catch {
+      // Decode or query failed — proceed anyway
+    }
+  }
+  return c.json({ success: true });
 });
 
 export default auth;

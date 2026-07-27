@@ -13,6 +13,39 @@ const LogSchema = z.object({
 
 const logs = new Hono<Env>();
 
+function sanitizeObject(obj: unknown): unknown {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeObject);
+  }
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const lowerKey = key.toLowerCase();
+    if (
+      lowerKey.includes('password') ||
+      lowerKey.includes('token') ||
+      lowerKey.includes('key') ||
+      lowerKey.includes('auth') ||
+      lowerKey.includes('secret') ||
+      lowerKey.includes('credential') ||
+      lowerKey.includes('email')
+    ) {
+      sanitized[key] = '[REDACTED]';
+    } else if (typeof value === 'object' && value !== null) {
+      sanitized[key] = sanitizeObject(value);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
+function sanitizeString(str: string): string {
+  return str
+    .replace(/bearer\s+[a-zA-Z0-9\-._~+/]+=*/gi, 'Bearer [REDACTED]')
+    .replace(/(password|token|key|secret|auth|credential|email)["'\s]*[:=]["'\s]*([a-zA-Z0-9\-._~+/]+)/gi, '$1="[REDACTED]"');
+}
+
 logs.post('/', async (c) => {
   const ip = getClientIp(c);
   const rateLimitResult = await checkRateLimit(`rate_limit_logs:${ip}`, 30, 60);
@@ -39,9 +72,19 @@ logs.post('/', async (c) => {
   }
   const { error_message, stack_trace, source, context } = parsed.data;
 
+  const sanitizedMessage = sanitizeString(error_message);
+  const sanitizedStackTrace = stack_trace ? sanitizeString(stack_trace) : null;
+  const sanitizedContext = context ? sanitizeObject(context) : null;
+
   await db.query(
     'INSERT INTO sipwise_error_logs (user_id, error_message, stack_trace, source, context) VALUES ($1, $2, $3, $4, $5)',
-    [userId, error_message, stack_trace ?? null, source ?? 'frontend', context ? JSON.stringify(context) : null],
+    [
+      userId,
+      sanitizedMessage,
+      sanitizedStackTrace,
+      source ?? 'frontend',
+      sanitizedContext ? JSON.stringify(sanitizedContext) : null
+    ],
   );
 
   return c.json({ success: true });

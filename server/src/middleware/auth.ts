@@ -17,6 +17,8 @@ export interface JwtPayload {
   email: string;
 }
 
+import { db } from '../db.js';
+
 export function signToken(payload: JwtPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
@@ -31,8 +33,19 @@ export async function authMiddleware(c: Context<Env>, next: Next) {
     return c.json({ error: 'Missing or invalid Authorization header' }, 401);
   }
 
+  const token = authHeader.slice(7);
+
   try {
-    const payload = verifyToken(authHeader.slice(7));
+    // Check if token is blacklisted
+    const { rows } = await db.query(
+      'SELECT 1 FROM sipwise_token_blacklist WHERE token = $1',
+      [token]
+    );
+    if (rows.length > 0) {
+      return c.json({ error: 'Token is revoked' }, 401);
+    }
+
+    const payload = verifyToken(token);
     c.set('userId', payload.sub);
     await next();
   } catch {

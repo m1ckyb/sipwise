@@ -101,6 +101,17 @@ CREATE TABLE IF NOT EXISTS public.error_logs (
 CREATE INDEX IF NOT EXISTS idx_error_logs_created_at ON public.error_logs(created_at desc);
 ALTER TABLE public.error_logs ENABLE ROW LEVEL SECURITY;
 
+CREATE INDEX IF NOT EXISTS idx_error_logs_user_id ON public.error_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_sipwise_error_logs_user_id ON public.sipwise_error_logs(user_id);
+
+CREATE TABLE IF NOT EXISTS public.sipwise_token_blacklist (
+  token text primary key,
+  expires_at timestamp with time zone not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires_at ON public.sipwise_token_blacklist(expires_at);
+
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
