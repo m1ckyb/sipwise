@@ -32,10 +32,10 @@ app.use('*', csrfProtection);
 app.get('/api/health', async (c) => {
   try {
     await db.query('SELECT 1');
-    return c.json({ status: 'ok', db: 'ok', version: '0.2.0-rc2' });
+    return c.json({ status: 'ok', db: 'ok', version: '0.2.0-rc3' });
   } catch (err) {
     logger.error({ err }, 'Health check failed');
-    return c.json({ status: 'degraded', db: 'error', version: '0.2.0-rc2' }, 503);
+    return c.json({ status: 'degraded', db: 'error', version: '0.2.0-rc3' }, 503);
   }
 });
 
