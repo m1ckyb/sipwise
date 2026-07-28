@@ -40,6 +40,7 @@ When requested to "Make a release", where <type> is Patch, Minor, or Major, the 
     Update CHANGELOG.md:
         Create a new version heading with the new version number and current date (e.g., ## [1.0.0] - YYYY-MM-DD).
         Move only the content from unreleased.md that hasn't been released yet into this new section.
+        Note: If making any release except for an RC (e.g., a final Patch, Minor, or Major release), check for any previous `-rc` releases belonging to this version cycle and aggregate/add their changes to the new release changelog section.
         CRITICAL: Ensure you do not duplicate entries already present in older versions of CHANGELOG.md.
         Do not add an [Unreleased] section back to the top of CHANGELOG.md.
 
