@@ -120,6 +120,23 @@ curl -X POST http://localhost:8080/api/bac \
   -d '{"action":"add_drink","volume":330,"abv":5,"name":"Beer"}'
 ```
 
+## Inventory Stock Mode
+
+SipWise includes a robust digital inventory system to manage the drinks you have at home. This can be enabled by navigating to **Profile Settings** -> **App Mode** and selecting **Inventory Stock Mode**.
+
+### Key Features:
+- **Tracking Types**:
+  - **Containers (e.g. Spirits / Wine)**: Tracks total unopened bottles and remaining volume (ml) in the active container. Shows remaining standard shots left (assuming 30ml/shot).
+  - **Individual units (e.g. Cans / Bottles)**: Tracks simple unit stock count (deducted in whole numbers).
+- **Auto-Deduction**:
+  - When active, logging a drink from the **From Stock** tab in the drink logger automatically deducts volume.
+  - Logging via custom input, presets, or dashboard quick actions (`↩ Last Drink` / `⚡ Quick Drink`) will automatically trigger stock deduction if the drink name matches an inventory item (case-insensitively and trimmed).
+- **Stock Controls & Editing**:
+  - Use the `-1` / `+1` buttons on the inventory cards to quick-adjust unopened quantity.
+  - Editing a container item allows you to manually adjust the **MLs Left** in the active bottle.
+- **Auto Re-credit on Delete**:
+  - Deleting a logged drink from your history automatically re-credits that volume back to the corresponding inventory item, correctly incrementing your unopened bottle counts if the active container overflows.
+
 ---
 
 ## API for Home Assistant & Integrations
