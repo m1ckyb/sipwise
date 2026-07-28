@@ -359,10 +359,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const newDrink: Drink = { ...drink, id: crypto.randomUUID() };
     setDrinks(prev => [...prev, newDrink]);
   }, []);
+  const recreditToInventory = useCallback((name: string, volume: number) => {
+    setInventory(prev => {
+      let isFound = false;
+      const next = prev.map(item => {
+        if (item.name.trim().toLowerCase() !== name.trim().toLowerCase()) return item;
+        isFound = true;
+        
+        if (item.type === 'individual') {
+          const unitsToRecredit = Math.max(1, Math.round(volume / item.unitVolume));
+          return { ...item, quantity: item.quantity + unitsToRecredit };
+        } else {
+          let currentRemaining = item.remainingVolume + volume;
+          let currentQty = item.quantity;
+          
+          while (currentRemaining > item.unitVolume) {
+            currentQty += 1;
+            currentRemaining -= item.unitVolume;
+          }
+          
+          return {
+            ...item,
+            quantity: currentQty,
+            remainingVolume: currentRemaining
+          };
+        }
+      });
+      
+      if (isFound) {
+        safeSetItem('sipwise_inventory', JSON.stringify(next));
+        setProfileState(p => {
+          const updated = { ...p, inventory: next };
+          safeSetItem('sipwise_profile', JSON.stringify(updated));
+          return updated;
+        });
+      }
+      return next;
+    });
+  }, []);
+
   const removeDrink = useCallback((id: string) => {
-    setDrinks(prev => prev.filter(d => d.id !== id));
+    setDrinks(prev => {
+      const drinkToRemove = prev.find(d => d.id === id);
+      if (drinkToRemove && drinkToRemove.name && profileRef.current.appMode === 'inventory') {
+        recreditToInventory(drinkToRemove.name, drinkToRemove.volume);
+      }
+      return prev.filter(d => d.id !== id);
+    });
     showToast('Drink deleted', 'info');
-  }, [showToast]);
+  }, [showToast, recreditToInventory]);
   const updateDrink = useCallback((id: string, updates: Partial<Drink>) => {
     setDrinks(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
   }, []);

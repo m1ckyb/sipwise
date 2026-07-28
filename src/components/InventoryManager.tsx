@@ -14,6 +14,7 @@ function InventoryManager() {
   const [abv, setAbv] = useState<number | ''>('');
   const [quantity, setQuantity] = useState<number | ''>(1);
   const [calories, setCalories] = useState<number | ''>('');
+  const [remainingVolume, setRemainingVolume] = useState<number | ''>('');
 
   const resetForm = () => {
     setName('');
@@ -22,6 +23,7 @@ function InventoryManager() {
     setAbv('');
     setQuantity(1);
     setCalories('');
+    setRemainingVolume('');
     setIsAdding(false);
     setEditingItemId(null);
   };
@@ -41,6 +43,9 @@ function InventoryManager() {
       abv: Number(abv),
       quantity: Number(quantity),
       calories: calculatedCalories,
+      ...(editingItemId && type === 'container' && remainingVolume !== '' ? {
+        remainingVolume: Math.min(Number(remainingVolume), Number(unitVolume))
+      } : {})
     };
 
     if (editingItemId) {
@@ -61,6 +66,7 @@ function InventoryManager() {
     setAbv(item.abv);
     setQuantity(item.quantity);
     setCalories(item.calories !== undefined ? item.calories : '');
+    setRemainingVolume(item.remainingVolume !== undefined ? item.remainingVolume : '');
     setIsAdding(true);
   };
 
@@ -178,6 +184,22 @@ function InventoryManager() {
               />
             </div>
           </div>
+
+          {editingItemId && type === 'container' && (
+            <div className="form-group">
+              <label htmlFor="inv-remaining">MLs Left in Active Container</label>
+              <input 
+                id="inv-remaining"
+                type="number" 
+                min="0"
+                max={unitVolume || 10000}
+                value={remainingVolume} 
+                onChange={e => setRemainingVolume(e.target.value === '' ? '' : Number(e.target.value))} 
+                placeholder={unitVolume ? `Full is ${unitVolume}ml` : "ml left"}
+                required
+              />
+            </div>
+          )}
 
           <div className="form-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-md)' }}>
             <button type="button" onClick={resetForm}>Cancel</button>
