@@ -1,11 +1,8 @@
--- SQL commands to run in your Supabase SQL Editor.
--- Run this file to set up both Cloud Sync and Push Notification support.
+-- Migration: Cloud Sync, Push Notifications, API Keys, and Token Blacklist
 
 -- ============================================================
 -- 1. user_data table (Cloud Sync)
 -- ============================================================
-
--- Create table if it doesn't already exist
 create table if not exists public.user_data (
   id uuid primary key references auth.users(id) on delete cascade,
   profile jsonb,
@@ -15,10 +12,8 @@ create table if not exists public.user_data (
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Enable Row Level Security
 alter table public.user_data enable row level security;
 
--- Users can only read and write their own row
 create policy "Users can read own data"
   on public.user_data for select
   using (auth.uid() = id);
@@ -36,11 +31,9 @@ create policy "Users can delete own data"
   on public.user_data for delete
   using (auth.uid() = id);
 
-
 -- ============================================================
 -- 2. push_subscriptions table (Push Notifications)
 -- ============================================================
-
 create table if not exists public.push_subscriptions (
   endpoint text primary key,
   user_id uuid references auth.users(id) on delete cascade,
@@ -49,13 +42,10 @@ create table if not exists public.push_subscriptions (
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Performance Index
 create index if not exists idx_push_subscriptions_user_id on public.push_subscriptions(user_id);
 
--- Enable Row Level Security
 alter table public.push_subscriptions enable row level security;
 
--- Allow devices/users to manage push subscriptions
 create policy "Allow insert for push subscriptions"
   on public.push_subscriptions for insert
   with check (user_id is null or auth.uid() = user_id or auth.uid() is null);
@@ -73,11 +63,6 @@ create policy "Allow delete access for owner"
   on public.push_subscriptions for delete
   using (user_id is null or auth.uid() = user_id or auth.uid() is null);
 
-
--- ============================================================
--- 3. Auto-update triggers
--- ============================================================
-
 create or replace function public.handle_updated_at()
 returns trigger as $$
 begin
@@ -91,42 +76,62 @@ create or replace trigger set_push_subscriptions_updated_at
   for each row
   execute function public.handle_updated_at();
 
+-- ============================================================
+-- 3. api_keys table (Home Assistant / External Integrations)
+-- ============================================================
+create table if not exists public.api_keys (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  name text not null,
+  key_hash text unique,
+  key_prefix text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  last_used_at timestamp with time zone
+);
+
+create index if not exists idx_api_keys_user_id on public.api_keys(user_id);
+create index if not exists idx_api_keys_key_hash on public.api_keys(key_hash);
+
+alter table public.api_keys enable row level security;
+
+create policy "Users can read own api keys"
+  on public.api_keys for select
+  using (auth.uid() = user_id);
+
+create policy "Users can insert own api keys"
+  on public.api_keys for insert
+  with check (auth.uid() = user_id);
+
+create policy "Users can update own api keys"
+  on public.api_keys for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create policy "Users can delete own api keys"
+  on public.api_keys for delete
+  using (auth.uid() = user_id);
 
 -- ============================================================
--- Developer notes
+-- 4. sipwise_token_blacklist (Session Invalidation)
 -- ============================================================
--- To send a push notification from Supabase Edge Functions or a Node.js backend:
---
--- const webpush = require('web-push');
--- webpush.setVapidDetails(
---   'mailto:your-email@example.com',
---   process.env.VITE_VAPID_PUBLIC_KEY,   // from your .env / GitHub secret
---   process.env.VAPID_PRIVATE_KEY        // keep this server-side ONLY, never in .env committed to git
--- );
--- webpush.sendNotification(subscriptionObj, JSON.stringify({
---   title: 'Sober Alert!',
---   body: 'Your estimated BAC is now back to 0.00%. You are sober!'
--- }));
+create table if not exists public.sipwise_token_blacklist (
+  token text primary key,
+  expires_at timestamp with time zone not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+create index if not exists idx_token_blacklist_expires_at on public.sipwise_token_blacklist(expires_at);
 
 -- ============================================================
--- 4. Set up periodic check for Sober Alerts via pg_cron
+-- 5. Additional Performance Indexes
 -- ============================================================
--- To automatically check user BACs and send alerts, enable pg_cron 
--- and schedule the `check-alerts` edge function to run every 5 minutes.
---
--- CREATE EXTENSION IF NOT EXISTS pg_cron;
---
--- -- IMPORTANT: You MUST replace 'YOUR_PROJECT_REF' and 'YOUR_ANON_KEY' below
--- -- with your actual Supabase project reference and anon key for automated alerts to work!
--- -- Otherwise, the sober notifications will never be sent.
--- SELECT cron.schedule(
---   'check-bac-alerts',
---   '*/5 * * * *', -- Every 5 minutes
---   $$
---   SELECT net.http_post(
---     url:='https://YOUR_PROJECT_REF.supabase.co/functions/v1/check-alerts',
---     headers:='{"Content-Type": "application/json", "Authorization": "Bearer YOUR_ANON_KEY"}'::jsonb,
---     body:='{}'::jsonb
---   ) as request_id;
---   $$
--- );
+create index if not exists idx_error_logs_user_id on public.error_logs(user_id);
+
+-- ============================================================
+-- 6. Cron Schedule for automated alerts
+-- ============================================================
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+-- Note: The user/admin will need to manually set or update the schedule
+-- with their actual project reference and anon keys as needed.

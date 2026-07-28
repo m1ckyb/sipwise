@@ -126,10 +126,9 @@ curl -X POST http://localhost:8080/api/bac \
 
 You can query your live BAC data via a Supabase Edge Function. This allows integrations like Home Assistant to fetch your exact alcohol status securely using an API key.
 
-### 1. Database Setup
-1. Open the Supabase Dashboard -> SQL Editor.
-2. Run the provided `supabase_api_keys_setup.sql` script. This creates the `api_keys` table.
-3. Once created, insert a new row in the `api_keys` table:
+1. Open the Supabase Dashboard -> SQL Editor or run CLI migrations.
+2. The `api_keys` table is created automatically by the database migrations under `supabase/migrations/`.
+3. Once the database is migrated, insert a new row in the `api_keys` table:
    - Provide your Supabase User ID in `user_id`.
    - Provide a securely generated string for `key` (this will be your API Key).
 

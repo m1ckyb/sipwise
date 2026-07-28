@@ -24,10 +24,9 @@ npm run build
 ## 🗄️ Database & Environment Setup
 
 ### 1. Database Safety Note
-Applying **`update_db.sql`** is **100% safe** for live deployments. All statements use defensive PostgreSQL clauses (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`) and will **never** alter or delete existing user data.
+Applying database migrations is **100% safe** for live deployments. All statements use defensive PostgreSQL clauses (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`) and will **never** alter or delete existing user data.
 
-1. Log in to **Supabase Dashboard** ➔ **SQL Editor**.
-2. Run the SQL statements in **[update_db.sql](update_db.sql)** (or `supabase db push`).
+1. Run the database migrations via the Supabase CLI (`supabase db push`) or apply the migration files located in `supabase/migrations/` sequentially using the SQL Editor.
 
 ### 2. Edge Function Secrets Setup
 Verify Edge Function Secrets in **Supabase Dashboard** ➔ **Edge Functions** ➔ **Secrets**:
