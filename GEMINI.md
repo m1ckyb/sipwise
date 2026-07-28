@@ -26,10 +26,10 @@ When requested to "Make a dev release":
 
     Push to Dev: Push the current code to the dev branch.
 
-When requested to "Make a release", where <type> is Patch, Minor, or Major, the following steps must be performed on the dev branch based on Semantic Versioning:
+When requested to "Make a release" (where <type> is Patch, Minor, Major, or unspecified), the following steps must be performed on the dev branch based on Semantic Versioning:
 
     Determine New Version: Read the current version from VERSION.txt (e.g., X.Y.Z).
-        - For a final Patch, Minor, or Major release:
+        - For a final Patch, Minor, or Major release (or if the type is unspecified):
             - If the current version is an RC release (e.g., X.Y.Z-rcW), the new version will be that version minus the `-rcW` tag (e.g., X.Y.Z).
             - If the current version is NOT an RC release:
                 - For a Patch release: X.Y.(Z+1).
