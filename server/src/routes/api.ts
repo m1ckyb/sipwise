@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db.js';
-import { checkRateLimit } from '../middleware/rateLimit.js';
+import { checkRateLimit, getClientIp } from '../middleware/rateLimit.js';
+import { encryptData, decryptData } from '../utils/crypto.js';
 import { calculateBAC, calculateTimeToZero, estimateCalories, type Drink, type Profile } from '../utils/bac.js';
 import type { Env } from '../types.js';
 
@@ -52,6 +53,12 @@ api.get('/bac', async (c) => {
   const origin = c.req.header('origin');
   const headers = corsHeaders(origin);
 
+  const ip = getClientIp(c);
+  const ipRateLimit = await checkRateLimit(`rate_limit_api_ip:${ip}`, 60, 60);
+  if (!ipRateLimit.allowed) {
+    return c.json({ error: 'Too many API requests. Rate limit exceeded (60 req/min per IP).' }, 429, headers);
+  }
+
   const auth = await authenticateApiKey(c.req.raw);
   if (!auth) {
     return c.json({ error: 'Invalid API key' }, 401, headers);
@@ -70,8 +77,11 @@ api.get('/bac', async (c) => {
     return c.json({ error: 'User data not found' }, 404, headers);
   }
 
-  const profile: Profile = rows[0].profile;
-  const drinks: Drink[] = rows[0].drinks || [];
+  const profile = decryptData(rows[0].profile, auth.userId) as Profile | null;
+  if (!profile) {
+    return c.json({ error: 'Profile not initialized. Please complete setup in frontend first.' }, 400, headers);
+  }
+  const drinks = (decryptData(rows[0].drinks, auth.userId) as Drink[]) || [];
   const now = Date.now();
 
   const parsedDrinks = drinks.map(d => ({
@@ -119,6 +129,12 @@ api.post('/bac', async (c) => {
   const origin = c.req.header('origin');
   const headers = corsHeaders(origin);
 
+  const ip = getClientIp(c);
+  const ipRateLimit = await checkRateLimit(`rate_limit_api_ip:${ip}`, 60, 60);
+  if (!ipRateLimit.allowed) {
+    return c.json({ error: 'Too many API requests. Rate limit exceeded (60 req/min per IP).' }, 429, headers);
+  }
+
   const auth = await authenticateApiKey(c.req.raw);
   if (!auth) {
     return c.json({ error: 'Invalid API key' }, 401, headers);
@@ -152,7 +168,11 @@ api.post('/bac', async (c) => {
     return c.json({ error: 'User data not found' }, 404, headers);
   }
 
-  const drinks: Drink[] = rows[0].drinks || [];
+  const drinks = (decryptData(rows[0].drinks, auth.userId) as Drink[]) || [];
+  const profile = decryptData(rows[0].profile, auth.userId) as Profile | null;
+  if (!profile) {
+    return c.json({ error: 'Profile not initialized. Please complete setup in frontend first.' }, 400, headers);
+  }
   const now = Date.now();
 
   const newDrink: Drink = {
@@ -166,12 +186,13 @@ api.post('/bac', async (c) => {
 
   drinks.push(newDrink);
 
+  const encryptedDrinks = encryptData(drinks, auth.userId);
+
   await db.query(
     'UPDATE sipwise_user_data SET drinks = $1, updated_at = now() WHERE id = $2',
-    [JSON.stringify(drinks), auth.userId],
+    [encryptedDrinks ? JSON.stringify(encryptedDrinks) : null, auth.userId],
   );
 
-  const profile: Profile = rows[0].profile;
   const currentBac = calculateBAC(drinks, profile, now);
   const timeToZero = calculateTimeToZero(drinks, profile, now);
 
