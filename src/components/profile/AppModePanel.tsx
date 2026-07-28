@@ -3,7 +3,7 @@ import { useAppContext } from '../../context/AppContext';
 
 function AppModePanel() {
   const { profile, setProfile } = useAppContext();
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   const currentMode = profile.appMode || 'normal';
 

@@ -27,9 +27,9 @@ function ProfileSettings() {
       )}
       
       <div className="card settings-card">
-        <AppModePanel />
         <BodyMetricsForm />
         <MetabolismPanel />
+        <AppModePanel />
         <PresetManager />
         <Suspense fallback={<div className="panel-loading" style={{ padding: '1rem', opacity: 0.6 }}>Loading settings...</div>}>
           <AuthPanel />
