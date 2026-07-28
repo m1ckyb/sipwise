@@ -200,7 +200,7 @@ function Dashboard({ onAddClick }: { onAddClick: () => void }) {
           <button className="quick-add-btn" onClick={() => {
             const lastDrink = currentSession.drinks[0];
             if (profile.appMode === 'inventory') {
-              const matchedItem = inventory.find(item => item.name === lastDrink.name);
+              const matchedItem = inventory.find(item => item.name.trim().toLowerCase() === (lastDrink.name || '').trim().toLowerCase());
               if (matchedItem) {
                 const success = consumeFromInventory(matchedItem.id, lastDrink.volume);
                 if (!success) {
@@ -224,7 +224,7 @@ function Dashboard({ onAddClick }: { onAddClick: () => void }) {
         {profile.quickDrink && (
           <button className="quick-drink-btn" onClick={() => {
             if (profile.appMode === 'inventory') {
-              const matchedItem = inventory.find(item => item.name === profile.quickDrink!.name);
+              const matchedItem = inventory.find(item => item.name.trim().toLowerCase() === (profile.quickDrink!.name || '').trim().toLowerCase());
               if (matchedItem) {
                 const success = consumeFromInventory(matchedItem.id, profile.quickDrink!.volume);
                 if (!success) {

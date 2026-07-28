@@ -65,7 +65,7 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
 
   const handleAddPreset = (preset: Omit<Drink, 'id' | 'timestamp'>) => {
     if (isInventoryMode) {
-      const matchedItem = inventory.find(item => item.name === preset.name);
+      const matchedItem = inventory.find(item => item.name.trim().toLowerCase() === (preset.name || '').trim().toLowerCase());
       if (matchedItem) {
         const success = consumeFromInventory(matchedItem.id, preset.volume);
         if (!success) {
@@ -102,7 +102,7 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
       updateDrink(editDrink.id, { ...finalDrink, timestamp });
     } else {
       if (isInventoryMode) {
-        const matchedItem = inventory.find(item => item.name === finalDrink.name);
+        const matchedItem = inventory.find(item => item.name.trim().toLowerCase() === (finalDrink.name || '').trim().toLowerCase());
         if (matchedItem) {
           const success = consumeFromInventory(matchedItem.id, finalDrink.volume);
           if (!success) {
