@@ -5,33 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0-rc4] - 2026-07-28
-
-### Fixed
-- Fixed a bug where opening a container from inventory would not decrement the unopened bottles count (e.g. adding a drink left the bottle status as "unopened").
-
-## [0.2.0-rc3] - 2026-07-27
-
-### Added
-- Staged JWT session blacklist database table and verification middleware.
-- Staged POST /logout route to invalidate active user session tokens.
-- Add dynamic container health check to the API backend service.
-- Add index on user_id inside sipwise_error_logs table.
-- Implement recursive sanitizers to redact passwords, keys, and credentials from ingestion error logs.
-
-## [0.2.0-rc2] - 2026-07-27
-
-### Added
-- Low stock replenishment warning banner on dashboard/inventory view.
-
-### Fixed
-- Fixed authentication bypass vulnerability on account endpoint `/api/auth/me`.
-- Secured API client rate-limiting against IP header spoofing with socket-based IP extraction.
-- Blocked CSRF validation bypass for state-changing endpoints without Origin/Referer headers.
-- Decoupled server rate limit Map store to shared PostgreSQL records to support multi-replica horizontal scaling.
-- Added catch exception handlers on unawaited connection pool query promises to prevent silent server crashes.
-
-## [0.2.0-rc1] - 2026-07-27
+## [0.2.0] - 2026-07-28
 
 ### Added
 - Inventory stock mode for managing digital alcohol inventory.
@@ -39,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stock & Inventory management view to add, edit, delete, and quick-adjust items in stock.
 - Multi-dose container tracking (e.g. liquor bottles) and single-use unit tracking (e.g. beer cans).
 - DrinkLogger integration to consume drinks directly from active inventory with automatic level deduction.
+- Low stock replenishment warning banner on dashboard/inventory view.
+- Staged JWT session blacklist database table and verification middleware.
+- Staged POST /logout route to invalidate active user session tokens.
+- Add dynamic container health check to the API backend service.
+- Add index on user_id inside sipwise_error_logs table.
+- Implement recursive sanitizers to redact passwords, keys, and credentials from ingestion error logs.
+
+### Fixed
+- Fixed a bug where opening a container from inventory would not decrement the unopened bottles count (e.g. adding a drink left the bottle status as "unopened").
+- Fixed authentication bypass vulnerability on account endpoint `/api/auth/me`.
+- Secured API client rate-limiting against IP header spoofing with socket-based IP extraction.
+- Blocked CSRF validation bypass for state-changing endpoints without Origin/Referer headers.
+- Decoupled server rate limit Map store to shared PostgreSQL records to support multi-replica horizontal scaling.
+- Added catch exception handlers on unawaited connection pool query promises to prevent silent server crashes.
 
 ## [0.1.28] - 2026-07-27
 
