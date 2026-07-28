@@ -64,6 +64,17 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
   };
 
   const handleAddPreset = (preset: Omit<Drink, 'id' | 'timestamp'>) => {
+    if (isInventoryMode) {
+      const matchedItem = inventory.find(item => item.name === preset.name);
+      if (matchedItem) {
+        const success = consumeFromInventory(matchedItem.id, preset.volume);
+        if (!success) {
+          showToast(`Warning: Not enough stock for ${matchedItem.name}. Drink logged anyway!`, 'error');
+        } else {
+          showToast(`Logged drink and deducted from ${matchedItem.name}`, 'success');
+        }
+      }
+    }
     addDrink({ ...preset, timestamp });
     onClose();
   };
@@ -90,6 +101,17 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
     if (editDrink) {
       updateDrink(editDrink.id, { ...finalDrink, timestamp });
     } else {
+      if (isInventoryMode) {
+        const matchedItem = inventory.find(item => item.name === finalDrink.name);
+        if (matchedItem) {
+          const success = consumeFromInventory(matchedItem.id, finalDrink.volume);
+          if (!success) {
+            showToast(`Warning: Not enough stock for ${matchedItem.name}. Drink logged anyway!`, 'error');
+          } else {
+            showToast(`Logged drink and deducted from ${matchedItem.name}`, 'success');
+          }
+        }
+      }
       addDrink({ ...finalDrink, timestamp });
       if (saveAsPreset) {
         addPreset(finalDrink);

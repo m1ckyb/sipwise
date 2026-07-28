@@ -4,7 +4,7 @@ import { calculateBAC, calculateTimeToZero, formatBAC, groupIntoSessions, estima
 import BACGraph from './BACGraph';
 
 function Dashboard({ onAddClick }: { onAddClick: () => void }) {
-  const { drinks, profile, addDrink, user, pushToCloud, pullFromCloud, isSyncing, showToast } = useAppContext();
+  const { drinks, profile, addDrink, user, pushToCloud, pullFromCloud, isSyncing, showToast, inventory, consumeFromInventory } = useAppContext();
   const [currentBAC, setCurrentBAC] = useState(0);
   const [timeToZero, setTimeToZero] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -199,6 +199,17 @@ function Dashboard({ onAddClick }: { onAddClick: () => void }) {
         {isActive && currentSession && currentSession.drinks.length > 0 && (
           <button className="quick-add-btn" onClick={() => {
             const lastDrink = currentSession.drinks[0];
+            if (profile.appMode === 'inventory') {
+              const matchedItem = inventory.find(item => item.name === lastDrink.name);
+              if (matchedItem) {
+                const success = consumeFromInventory(matchedItem.id, lastDrink.volume);
+                if (!success) {
+                  showToast(`Warning: Not enough stock for ${matchedItem.name}. Drink logged anyway!`, 'error');
+                } else {
+                  showToast(`Logged drink and deducted from ${matchedItem.name}`, 'success');
+                }
+              }
+            }
             addDrink({
               timestamp: Date.now(),
               volume: lastDrink.volume,
@@ -212,6 +223,17 @@ function Dashboard({ onAddClick }: { onAddClick: () => void }) {
         )}
         {profile.quickDrink && (
           <button className="quick-drink-btn" onClick={() => {
+            if (profile.appMode === 'inventory') {
+              const matchedItem = inventory.find(item => item.name === profile.quickDrink!.name);
+              if (matchedItem) {
+                const success = consumeFromInventory(matchedItem.id, profile.quickDrink!.volume);
+                if (!success) {
+                  showToast(`Warning: Not enough stock for ${matchedItem.name}. Drink logged anyway!`, 'error');
+                } else {
+                  showToast(`Logged drink and deducted from ${matchedItem.name}`, 'success');
+                }
+              }
+            }
             addDrink({
               timestamp: Date.now(),
               volume: profile.quickDrink!.volume,
