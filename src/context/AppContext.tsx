@@ -441,6 +441,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           let currentQty = item.quantity;
           let currentRemaining = item.remainingVolume;
           
+          if (currentRemaining === item.unitVolume && currentQty > 0) {
+            currentQty -= 1;
+          }
+          
           if (currentRemaining >= remainingToDeduct) {
             currentRemaining -= remainingToDeduct;
             remainingToDeduct = 0;
