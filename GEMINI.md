@@ -32,6 +32,10 @@ When requested to "Make a release", where <type> is Patch, Minor, or Major, the 
         For a Patch release, the new version will be X.Y.(Z+1).
         For a Minor release, the new version will be X.(Y+1).0.
         For a Major release, the new version will be (X+1).0.0.
+        For a Release Candidate (RC) release:
+            - If the current version is NOT an RC release (e.g., X.Y.Z), the new version will be X.Y.(Z+1)-rc1.
+            - If the current version IS already an RC release (e.g., X.Y.Z-rcW), the new version will be X.Y.Z-rc(W+1).
+            - Note: RC releases must always be tagged as a pre-release on GitHub (using the `--prerelease` flag).
 
     Update CHANGELOG.md:
         Create a new version heading with the new version number and current date (e.g., ## [1.0.0] - YYYY-MM-DD).
