@@ -467,29 +467,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
   const consumeFromInventory = useCallback((id: string, volume: number): boolean => {
+    const item = inventory.find(i => i.id === id);
+    if (!item) return false;
+
     let success = false;
+    if (item.type === 'individual') {
+      const unitsToDeduct = Math.max(1, Math.round(volume / item.unitVolume));
+      if (item.quantity >= unitsToDeduct) {
+        success = true;
+      }
+    } else {
+      let remainingToDeduct = volume;
+      let currentQty = item.quantity;
+      let currentRemaining = item.remainingVolume;
+
+      if (currentRemaining === item.unitVolume && currentQty > 0) {
+        currentQty -= 1;
+      }
+
+      if (currentRemaining >= remainingToDeduct) {
+        remainingToDeduct = 0;
+      } else {
+        remainingToDeduct -= currentRemaining;
+        currentRemaining = 0;
+      }
+
+      while (remainingToDeduct > 0 && currentQty > 0) {
+        currentQty -= 1;
+        currentRemaining = item.unitVolume;
+        if (currentRemaining >= remainingToDeduct) {
+          remainingToDeduct = 0;
+        } else {
+          remainingToDeduct -= currentRemaining;
+          currentRemaining = 0;
+        }
+      }
+
+      if (remainingToDeduct === 0 || (item.quantity > 0 && currentQty >= 0)) {
+        success = true;
+      }
+    }
+
+    if (!success) return false;
+
     setInventory(prev => {
-      let isFound = false;
-      const next = prev.map(item => {
-        if (item.id !== id) return item;
-        isFound = true;
-        
-        if (item.type === 'individual') {
-          const unitsToDeduct = Math.max(1, Math.round(volume / item.unitVolume));
-          if (item.quantity >= unitsToDeduct) {
-            success = true;
-            return { ...item, quantity: item.quantity - unitsToDeduct };
-          }
-          return item;
+      const next = prev.map(i => {
+        if (i.id !== id) return i;
+        if (i.type === 'individual') {
+          const unitsToDeduct = Math.max(1, Math.round(volume / i.unitVolume));
+          return { ...i, quantity: i.quantity - unitsToDeduct };
         } else {
           let remainingToDeduct = volume;
-          let currentQty = item.quantity;
-          let currentRemaining = item.remainingVolume;
-          
-          if (currentRemaining === item.unitVolume && currentQty > 0) {
+          let currentQty = i.quantity;
+          let currentRemaining = i.remainingVolume;
+
+          if (currentRemaining === i.unitVolume && currentQty > 0) {
             currentQty -= 1;
           }
-          
+
           if (currentRemaining >= remainingToDeduct) {
             currentRemaining -= remainingToDeduct;
             remainingToDeduct = 0;
@@ -497,10 +532,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
             remainingToDeduct -= currentRemaining;
             currentRemaining = 0;
           }
-          
+
           while (remainingToDeduct > 0 && currentQty > 0) {
             currentQty -= 1;
-            currentRemaining = item.unitVolume;
+            currentRemaining = i.unitVolume;
             if (currentRemaining >= remainingToDeduct) {
               currentRemaining -= remainingToDeduct;
               remainingToDeduct = 0;
@@ -509,31 +544,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
               currentRemaining = 0;
             }
           }
-          
-          if (remainingToDeduct === 0 || (item.quantity > 0 && currentQty >= 0)) {
-            success = true;
-            return {
-              ...item,
-              quantity: currentQty,
-              remainingVolume: currentRemaining
-            };
-          }
-          return item;
+
+          return {
+            ...i,
+            quantity: currentQty,
+            remainingVolume: currentRemaining
+          };
         }
       });
-      
-      if (success && isFound) {
-        safeSetItem('sipwise_inventory', JSON.stringify(next));
-        setProfileState(p => {
-          const updated = { ...p, inventory: next };
-          safeSetItem('sipwise_profile', JSON.stringify(updated));
-          return updated;
-        });
-      }
+
+      safeSetItem('sipwise_inventory', JSON.stringify(next));
+      setProfileState(p => {
+        const updated = { ...p, inventory: next };
+        safeSetItem('sipwise_profile', JSON.stringify(updated));
+        return updated;
+      });
       return next;
     });
-    return success;
-  }, []);
+
+    return true;
+  }, [inventory]);
   const clearHistory = useCallback(() => {
     setDrinks([]);
     showToast('Drink history cleared', 'info');
