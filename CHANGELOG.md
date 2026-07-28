@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-07-28
+
+### Changed
+- Moved the App Mode settings panel to be located directly above the Drink Presets panel and collapsed it by default.
+
+### Fixed
+- Fixed a bug where quick-add, quick-drink, custom, and preset logs on the dashboard or logger didn't automatically deduct from stock when the drink name matched an inventory item in inventory mode (now using case-insensitive and trimmed name comparison to prevent match failures).
+
 ## [0.2.0] - 2026-07-28
 
 ### Added
