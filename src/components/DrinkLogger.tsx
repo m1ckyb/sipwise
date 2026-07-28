@@ -229,7 +229,7 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
                 </p>
                 {selectedItem.type === 'container' && (
                   <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', opacity: 0.8 }}>
-                    Current bottle: {selectedItem.remainingVolume}ml left
+                    Current bottle: {selectedItem.remainingVolume}ml left ({(selectedItem.remainingVolume / 30).toFixed(1).replace(/\.0$/, '')} shots)
                   </p>
                 )}
               </div>

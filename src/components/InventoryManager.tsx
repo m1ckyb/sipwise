@@ -217,6 +217,7 @@ function InventoryManager() {
           inventory.map(item => {
             const hasOpen = item.type === 'container' && item.remainingVolume < item.unitVolume && item.remainingVolume > 0;
             const fillPercentage = item.type === 'container' ? (item.remainingVolume / item.unitVolume) * 100 : 100;
+            const shotsLeft = item.type === 'container' ? (item.remainingVolume / 30).toFixed(1).replace(/\.0$/, '') : 0;
             
             return (
               <div key={item.id} className="card inventory-item-card" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
@@ -255,7 +256,7 @@ function InventoryManager() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '4px' }}>
                       <span>
                         {hasOpen 
-                          ? `Active Container: ${item.remainingVolume}ml / ${item.unitVolume}ml left` 
+                          ? `Active Container: ${item.remainingVolume}ml / ${item.unitVolume}ml left (${shotsLeft} shots left)` 
                           : item.quantity > 0 
                             ? 'Ready to open first bottle'
                             : 'All bottles empty'
