@@ -29,12 +29,18 @@ When requested to "Make a dev release":
 When requested to "Make a release", where <type> is Patch, Minor, or Major, the following steps must be performed on the dev branch based on Semantic Versioning:
 
     Determine New Version: Read the current version from VERSION.txt (e.g., X.Y.Z).
-        For a Patch release, the new version will be X.Y.(Z+1).
-        For a Minor release, the new version will be X.(Y+1).0.
-        For a Major release, the new version will be (X+1).0.0.
-        For a Release Candidate (RC) release:
-            - If the current version is NOT an RC release (e.g., X.Y.Z), the new version will be X.Y.(Z+1)-rc1.
-            - If the current version IS already an RC release (e.g., X.Y.Z-rcW), the new version will be X.Y.Z-rc(W+1).
+        - For a final Patch, Minor, or Major release:
+            - If the current version is an RC release (e.g., X.Y.Z-rcW), the new version will be that version minus the `-rcW` tag (e.g., X.Y.Z).
+            - If the current version is NOT an RC release:
+                - For a Patch release: X.Y.(Z+1).
+                - For a Minor release: X.(Y+1).0.
+                - For a Major release: (X+1).0.0.
+        - For a Release Candidate (RC) release:
+            - If the current version IS already an RC release (e.g., X.Y.Z-rcW), the new version will simply increment the RC count: X.Y.Z-rc(W+1).
+            - If the current version is NOT an RC release (e.g., X.Y.Z), the new version goes to the next target release number with a `-rc1` tag:
+                - For a Patch RC: X.Y.(Z+1)-rc1
+                - For a Minor RC: X.(Y+1).0-rc1
+                - For a Major RC: (X+1).0.0-rc1
             - Note: RC releases must always be tagged as a pre-release on GitHub (using the `--prerelease` flag).
 
     Update CHANGELOG.md:
