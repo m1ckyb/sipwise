@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7-rc1] - 2026-07-30
+
+### Added
+- Display equivalent standard shot counts (at 30ml/shot) for each bottle size listed under the unopened container stock list.
+
+### Fixed
+- Fixed backend data-sync validation schema (Zod) stripping out new inventory fields (`bottles` and `activeContainerVolume`), ensuring they persist correctly after synchronizing with the cloud database.
+
 ## [0.2.6] - 2026-07-29
 
 ### Added

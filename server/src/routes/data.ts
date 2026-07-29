@@ -14,6 +14,8 @@ const InventoryItemSchema = z.object({
   quantity: z.number().nonnegative(),
   remainingVolume: z.number().nonnegative(),
   calories: z.number().nonnegative().optional(),
+  bottles: z.array(z.number().positive()).optional(),
+  activeContainerVolume: z.number().positive().optional(),
 });
 
 const ProfileSchema = z.object({

@@ -225,7 +225,13 @@ function InventoryManager() {
               acc[vol] = (acc[vol] || 0) + 1;
               return acc;
             }, {});
-            const sizeStrings = Object.entries(sizeCounts).map(([vol, count]) => `${count}x ${vol}ml`);
+            const sizeStrings = Object.entries(sizeCounts).map(([vol, count]) => {
+              if (item.type === 'container') {
+                const shots = ((Number(vol) * count) / 30).toFixed(1).replace(/\.0$/, '');
+                return `${count}x ${vol}ml (${shots} shots)`;
+              }
+              return `${count}x ${vol}ml`;
+            });
             
             return (
               <div key={item.id} className="card inventory-item-card" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
