@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7-rc2] - 2026-07-30
+
+### Added
+- Added standard shot size setting (defaults to 30ml) under Body Metrics settings, allowing custom shot volumes to be calculated and displayed across the app.
+
+### Changed
+- Changed PWA registerType to `'prompt'` in `vite.config.ts` so users are prompted to refresh to the new version when updates are released, instead of silently updating and showing the "App ready to work offline" message.
+
 ## [0.2.7-rc1] - 2026-07-30
 
 ### Added

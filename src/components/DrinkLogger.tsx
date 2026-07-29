@@ -229,7 +229,7 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
                 </p>
                 {selectedItem.type === 'container' && (
                   <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', opacity: 0.8 }}>
-                    Current bottle: {selectedItem.remainingVolume}ml left ({(selectedItem.remainingVolume / 30).toFixed(1).replace(/\.0$/, '')} shots)
+                    Current bottle: {selectedItem.remainingVolume}ml left ({(selectedItem.remainingVolume / (profile.shotSize ?? 30)).toFixed(1).replace(/\.0$/, '')} shots)
                   </p>
                 )}
               </div>
@@ -239,7 +239,7 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
               <div className="form-group">
                 <label>Volume to Consume (ml)</label>
                 <div className="quick-offsets" style={{ marginBottom: 'var(--spacing-sm)' }}>
-                  <button type="button" onClick={() => setStockVolume(30)}>Single Shot (30ml)</button>
+                  <button type="button" onClick={() => setStockVolume(profile.shotSize ?? 30)}>Single Shot ({profile.shotSize ?? 30}ml)</button>
                   <button type="button" onClick={() => setStockVolume(45)}>Shot/Nip (45ml)</button>
                   <button type="button" onClick={() => setStockVolume(150)}>Glass (150ml)</button>
                   <button type="button" onClick={() => setStockVolume(selectedItem.unitVolume)}>Full Bottle ({selectedItem.unitVolume}ml)</button>

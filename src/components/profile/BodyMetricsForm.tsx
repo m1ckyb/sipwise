@@ -8,13 +8,14 @@ function BodyMetricsForm() {
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    if (name === 'weight' || name === 'height' || name === 'age') {
+    if (name === 'weight' || name === 'height' || name === 'age' || name === 'shotSize') {
       const numVal = Number(value);
       if (!Number.isFinite(numVal) || numVal <= 0) return;
       let clamped = numVal;
       if (name === 'weight') clamped = Math.max(20, Math.min(400, numVal));
       if (name === 'height') clamped = Math.max(50, Math.min(250, numVal));
       if (name === 'age') clamped = Math.max(1, Math.min(120, numVal));
+      if (name === 'shotSize') clamped = Math.max(1, Math.min(500, numVal));
       setProfile({ ...profile, [name]: clamped });
     } else {
       setProfile({ ...profile, [name]: value });
@@ -113,6 +114,20 @@ function BodyMetricsForm() {
                 </select>
               </div>
               <p className="help-text">Choose how BAC values are displayed throughout the app.</p>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="body-metric-shotSize">Standard Shot Size (ml)</label>
+              <input 
+                id="body-metric-shotSize"
+                type="number" 
+                name="shotSize" 
+                min="1"
+                max="500"
+                value={profile.shotSize ?? 30} 
+                onChange={handleChange} 
+              />
+              <p className="help-text">Standard shot volume in milliliters used for calculating shot counts in stock and logs (defaults to 30ml).</p>
             </div>
           </div>
         </div>

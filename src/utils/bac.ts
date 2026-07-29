@@ -71,6 +71,7 @@ export interface Profile {
     calories?: number;
   };
   inventory?: InventoryItem[];
+  shotSize?: number; // custom standard shot size in ml
 }
 
 export interface InventoryItem {

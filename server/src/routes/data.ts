@@ -34,6 +34,7 @@ const ProfileSchema = z.object({
     calories: z.number().nonnegative().optional(),
   }).optional(),
   inventory: z.array(InventoryItemSchema).optional(),
+  shotSize: z.number().positive().optional(),
 });
 
 const DrinkSchema = z.object({

@@ -3,7 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import { estimateCalories, type InventoryItem } from '../utils/bac';
 
 function InventoryManager() {
-  const { inventory, addInventoryItem, removeInventoryItem, updateInventoryItem, showToast } = useAppContext();
+  const { inventory, addInventoryItem, removeInventoryItem, updateInventoryItem, showToast, profile } = useAppContext();
   
   const [isAdding, setIsAdding] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -218,7 +218,7 @@ function InventoryManager() {
             const activeCapacity = item.activeContainerVolume ?? item.unitVolume;
             const hasOpen = item.type === 'container' && item.remainingVolume < activeCapacity && item.remainingVolume > 0;
             const fillPercentage = item.type === 'container' ? (item.remainingVolume / activeCapacity) * 100 : 100;
-            const shotsLeft = item.type === 'container' ? (item.remainingVolume / 30).toFixed(1).replace(/\.0$/, '') : 0;
+            const shotsLeft = item.type === 'container' ? (item.remainingVolume / (profile.shotSize ?? 30)).toFixed(1).replace(/\.0$/, '') : 0;
             
             const bottlesList = item.bottles || Array(item.quantity).fill(item.unitVolume);
             const sizeCounts = bottlesList.reduce((acc: Record<number, number>, vol) => {
@@ -227,7 +227,7 @@ function InventoryManager() {
             }, {});
             const sizeStrings = Object.entries(sizeCounts).map(([vol, count]) => {
               if (item.type === 'container') {
-                const shots = ((Number(vol) * count) / 30).toFixed(1).replace(/\.0$/, '');
+                const shots = ((Number(vol) * count) / (profile.shotSize ?? 30)).toFixed(1).replace(/\.0$/, '');
                 return `${count}x ${vol}ml (${shots} shots)`;
               }
               return `${count}x ${vol}ml`;
