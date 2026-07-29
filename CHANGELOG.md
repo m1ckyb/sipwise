@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-07-29
+
+### Added
+- Added ability to track and add different sized bottles/units to individual stock items in the inventory.
+- Added quick action selectors (+330ml, +375ml, +500ml, +700ml, +750ml, +1000ml) and custom volume input for adding bottles of varying sizes.
+- Added inventory display listing the count and volume breakdown of unopened stock.
+- Supported consumption/deduction of dynamic bottle sizes from stock, including smart-matching bottle/unit volumes.
+
 ## [0.2.5] - 2026-07-28
 
 ### Fixed

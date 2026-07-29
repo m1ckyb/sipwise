@@ -366,22 +366,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (item.name.trim().toLowerCase() !== name.trim().toLowerCase()) return item;
         isFound = true;
         
+        const bottles = [...(item.bottles || Array(item.quantity).fill(item.unitVolume))];
+        const activeVolume = item.activeContainerVolume ?? item.unitVolume;
+        
         if (item.type === 'individual') {
           const unitsToRecredit = Math.max(1, Math.round(volume / item.unitVolume));
-          return { ...item, quantity: item.quantity + unitsToRecredit };
+          for (let i = 0; i < unitsToRecredit; i++) {
+            bottles.push(item.unitVolume);
+          }
+          return {
+            ...item,
+            quantity: bottles.length,
+            bottles
+          };
         } else {
           let currentRemaining = item.remainingVolume + volume;
-          let currentQty = item.quantity;
           
-          while (currentRemaining > item.unitVolume) {
-            currentQty += 1;
-            currentRemaining -= item.unitVolume;
+          while (currentRemaining > activeVolume) {
+            bottles.push(activeVolume);
+            currentRemaining -= activeVolume;
           }
           
           return {
             ...item,
-            quantity: currentQty,
-            remainingVolume: currentRemaining
+            quantity: bottles.length,
+            remainingVolume: currentRemaining,
+            bottles
           };
         }
       });
@@ -423,6 +433,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ...item,
       id: crypto.randomUUID(),
       remainingVolume: item.unitVolume,
+      activeContainerVolume: item.unitVolume,
+      bottles: Array(item.quantity).fill(item.unitVolume),
     };
     setInventory(prev => {
       const next = [...prev, newItem];
@@ -451,10 +463,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setInventory(prev => {
       const next = prev.map(item => {
         if (item.id !== id) return item;
+        
+        const currentBottles = [...(item.bottles || Array(item.quantity).fill(item.unitVolume))];
         const updatedItem = { ...item, ...updates };
+        
+        if (updates.bottles !== undefined) {
+          updatedItem.quantity = updates.bottles.length;
+        } else if (updates.quantity !== undefined) {
+          const newQty = updates.quantity;
+          if (newQty > currentBottles.length) {
+            const diff = newQty - currentBottles.length;
+            const sizeToAdd = updates.unitVolume ?? item.unitVolume;
+            for (let i = 0; i < diff; i++) {
+              currentBottles.push(sizeToAdd);
+            }
+          } else if (newQty < currentBottles.length) {
+            currentBottles.splice(newQty);
+          }
+          updatedItem.bottles = currentBottles;
+        }
+        
         if (updates.unitVolume !== undefined || updates.type !== undefined) {
           updatedItem.remainingVolume = Math.min(updatedItem.remainingVolume, updatedItem.unitVolume);
+          if (updatedItem.activeContainerVolume === undefined) {
+            updatedItem.activeContainerVolume = updatedItem.unitVolume;
+          }
         }
+        
         return updatedItem;
       });
       safeSetItem('sipwise_inventory', JSON.stringify(next));
@@ -470,85 +505,81 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const item = inventory.find(i => i.id === id);
     if (!item) return false;
 
-    let success = false;
-    if (item.type === 'individual') {
-      const unitsToDeduct = Math.max(1, Math.round(volume / item.unitVolume));
-      if (item.quantity >= unitsToDeduct) {
-        success = true;
-      }
-    } else {
-      let remainingToDeduct = volume;
-      let currentQty = item.quantity;
-      let currentRemaining = item.remainingVolume;
-
-      if (currentRemaining === item.unitVolume && currentQty > 0) {
-        currentQty -= 1;
-      }
-
-      if (currentRemaining >= remainingToDeduct) {
-        remainingToDeduct = 0;
-      } else {
-        remainingToDeduct -= currentRemaining;
-        currentRemaining = 0;
-      }
-
-      while (remainingToDeduct > 0 && currentQty > 0) {
-        currentQty -= 1;
-        currentRemaining = item.unitVolume;
-        if (currentRemaining >= remainingToDeduct) {
-          remainingToDeduct = 0;
-        } else {
-          remainingToDeduct -= currentRemaining;
-          currentRemaining = 0;
-        }
-      }
-
-      if (remainingToDeduct === 0 || (item.quantity > 0 && currentQty >= 0)) {
-        success = true;
-      }
-    }
+    const bottles = [...(item.bottles || Array(item.quantity).fill(item.unitVolume))];
+    const remainingVolume = item.remainingVolume;
+    const success = item.type === 'individual'
+      ? (() => {
+          let remainingVolToDeduct = volume;
+          const tempBottles = [...bottles];
+          while (remainingVolToDeduct > 0 && tempBottles.length > 0) {
+            let index = tempBottles.findIndex(b => Math.abs(b - remainingVolToDeduct) < 10);
+            if (index === -1) {
+              index = 0;
+            }
+            remainingVolToDeduct -= tempBottles.splice(index, 1)[0];
+          }
+          return remainingVolToDeduct <= 0 || tempBottles.length === 0;
+        })()
+      : (remainingVolume + bottles.reduce((sum, vol) => sum + vol, 0)) >= volume;
 
     if (!success) return false;
 
     setInventory(prev => {
       const next = prev.map(i => {
         if (i.id !== id) return i;
+        
         if (i.type === 'individual') {
-          const unitsToDeduct = Math.max(1, Math.round(volume / i.unitVolume));
-          return { ...i, quantity: i.quantity - unitsToDeduct };
-        } else {
-          let remainingToDeduct = volume;
-          let currentQty = i.quantity;
-          let currentRemaining = i.remainingVolume;
-
-          if (currentRemaining === i.unitVolume && currentQty > 0) {
-            currentQty -= 1;
-          }
-
-          if (currentRemaining >= remainingToDeduct) {
-            currentRemaining -= remainingToDeduct;
-            remainingToDeduct = 0;
-          } else {
-            remainingToDeduct -= currentRemaining;
-            currentRemaining = 0;
-          }
-
-          while (remainingToDeduct > 0 && currentQty > 0) {
-            currentQty -= 1;
-            currentRemaining = i.unitVolume;
-            if (currentRemaining >= remainingToDeduct) {
-              currentRemaining -= remainingToDeduct;
-              remainingToDeduct = 0;
-            } else {
-              remainingToDeduct -= currentRemaining;
-              currentRemaining = 0;
+          const finalBottles = [...(i.bottles || Array(i.quantity).fill(i.unitVolume))];
+          let remainingVolToDeduct = volume;
+          while (remainingVolToDeduct > 0 && finalBottles.length > 0) {
+            let index = finalBottles.findIndex(b => Math.abs(b - remainingVolToDeduct) < 10);
+            if (index === -1) {
+              index = 0;
             }
+            const poppedVol = finalBottles.splice(index, 1)[0];
+            remainingVolToDeduct -= poppedVol;
           }
-
           return {
             ...i,
-            quantity: currentQty,
-            remainingVolume: currentRemaining
+            quantity: finalBottles.length,
+            bottles: finalBottles
+          };
+        } else {
+          const finalBottles = [...(i.bottles || Array(i.quantity).fill(i.unitVolume))];
+          let currentActiveVolume = i.activeContainerVolume ?? i.unitVolume;
+          let currentRemainingVolume = i.remainingVolume;
+          
+          if (currentRemainingVolume === 0 && finalBottles.length > 0) {
+            currentActiveVolume = finalBottles.shift()!;
+            currentRemainingVolume = currentActiveVolume;
+          }
+          
+          let remainingToDeduct = volume;
+          if (currentRemainingVolume >= remainingToDeduct) {
+            currentRemainingVolume -= remainingToDeduct;
+          } else {
+            remainingToDeduct -= currentRemainingVolume;
+            currentRemainingVolume = 0;
+            
+            while (remainingToDeduct > 0 && finalBottles.length > 0) {
+              currentActiveVolume = finalBottles.shift()!;
+              currentRemainingVolume = currentActiveVolume;
+              if (currentRemainingVolume >= remainingToDeduct) {
+                currentRemainingVolume -= remainingToDeduct;
+                remainingToDeduct = 0;
+              } else {
+                remainingToDeduct -= currentRemainingVolume;
+                currentRemainingVolume = 0;
+              }
+            }
+          }
+          
+          return {
+            ...i,
+            quantity: finalBottles.length,
+            remainingVolume: currentRemainingVolume,
+            activeContainerVolume: currentActiveVolume,
+            bottles: finalBottles
           };
         }
       });

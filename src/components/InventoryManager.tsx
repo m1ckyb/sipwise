@@ -215,9 +215,17 @@ function InventoryManager() {
           </div>
         ) : (
           inventory.map(item => {
-            const hasOpen = item.type === 'container' && item.remainingVolume < item.unitVolume && item.remainingVolume > 0;
-            const fillPercentage = item.type === 'container' ? (item.remainingVolume / item.unitVolume) * 100 : 100;
+            const activeCapacity = item.activeContainerVolume ?? item.unitVolume;
+            const hasOpen = item.type === 'container' && item.remainingVolume < activeCapacity && item.remainingVolume > 0;
+            const fillPercentage = item.type === 'container' ? (item.remainingVolume / activeCapacity) * 100 : 100;
             const shotsLeft = item.type === 'container' ? (item.remainingVolume / 30).toFixed(1).replace(/\.0$/, '') : 0;
+            
+            const bottlesList = item.bottles || Array(item.quantity).fill(item.unitVolume);
+            const sizeCounts = bottlesList.reduce((acc: Record<number, number>, vol) => {
+              acc[vol] = (acc[vol] || 0) + 1;
+              return acc;
+            }, {});
+            const sizeStrings = Object.entries(sizeCounts).map(([vol, count]) => `${count}x ${vol}ml`);
             
             return (
               <div key={item.id} className="card inventory-item-card" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
@@ -256,14 +264,15 @@ function InventoryManager() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '4px' }}>
                       <span>
                         {hasOpen 
-                          ? `Active Container: ${item.remainingVolume}ml / ${item.unitVolume}ml left (${shotsLeft} shots left)` 
+                          ? `Active Container: ${item.remainingVolume}ml / ${activeCapacity}ml left (${shotsLeft} shots left)` 
                           : item.quantity > 0 
                             ? 'Ready to open first bottle'
                             : 'All bottles empty'
                         }
                       </span>
-                      <strong>
+                      <strong style={{ fontSize: '0.85rem' }}>
                         {item.quantity} {item.quantity === 1 ? 'bottle' : 'bottles'} unopened
+                        {sizeStrings.length > 0 && ` (${sizeStrings.join(', ')})`}
                       </strong>
                     </div>
                     {item.quantity > 0 || hasOpen ? (
@@ -285,31 +294,110 @@ function InventoryManager() {
                     <span>Stock count:</span>
                     <strong style={{ fontSize: '1.1rem', color: item.quantity === 0 ? 'var(--error)' : 'inherit' }}>
                       {item.quantity} {item.quantity === 1 ? 'unit' : 'units'} left
+                      {sizeStrings.length > 0 && ` (${sizeStrings.join(', ')})`}
                     </strong>
                   </div>
                 )}
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--spacing-xs)', paddingTop: 'var(--spacing-xs)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                  <span className="help-text" style={{ margin: 0 }}>
-                    Quick Adjust Stock Quantity:
-                  </span>
-                  <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
-                    <button 
-                      type="button" 
-                      onClick={() => adjustQuantity(item.id, -1)}
-                      disabled={item.quantity <= 0}
-                      style={{ padding: '4px 12px', background: 'rgba(255,255,255,0.05)' }}
-                    >
-                      -1
-                    </button>
-                    <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>{item.quantity}</span>
-                    <button 
-                      type="button" 
-                      onClick={() => adjustQuantity(item.id, 1)}
-                      style={{ padding: '4px 12px', background: 'rgba(255,255,255,0.05)' }}
-                    >
-                      +1
-                    </button>
+                <div style={{ marginTop: 'var(--spacing-xs)', paddingTop: 'var(--spacing-xs)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="help-text" style={{ margin: 0 }}>
+                      Quick Adjust Stock (Default Size):
+                    </span>
+                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                      <button 
+                        type="button" 
+                        onClick={() => adjustQuantity(item.id, -1)}
+                        disabled={item.quantity <= 0}
+                        style={{ padding: '4px 12px', background: 'rgba(255,255,255,0.05)' }}
+                      >
+                        -1
+                      </button>
+                      <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>{item.quantity}</span>
+                      <button 
+                        type="button" 
+                        onClick={() => adjustQuantity(item.id, 1)}
+                        style={{ padding: '4px 12px', background: 'rgba(255,255,255,0.05)' }}
+                      >
+                        +1
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: 'var(--spacing-xs)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                      <span className="help-text" style={{ margin: 0 }}>Add Different Size:</span>
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {[330, 375, 500, 700, 750, 1000].map(sz => (
+                          <button
+                            key={sz}
+                            type="button"
+                            onClick={() => {
+                              const currentBottles = [...(item.bottles || Array(item.quantity).fill(item.unitVolume))];
+                              currentBottles.push(sz);
+                              updateInventoryItem(item.id, { bottles: currentBottles });
+                              showToast(`Added ${sz}ml bottle to ${item.name}`, 'success');
+                            }}
+                            style={{ padding: '2px 6px', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}
+                          >
+                            +{sz}ml
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="help-text" style={{ margin: 0 }}>Add Custom Size:</span>
+                      <form 
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const form = e.currentTarget;
+                          const input = form.elements.namedItem('custom-size') as HTMLInputElement;
+                          const sz = Number(input.value);
+                          if (sz > 0) {
+                            const currentBottles = [...(item.bottles || Array(item.quantity).fill(item.unitVolume))];
+                            currentBottles.push(sz);
+                            updateInventoryItem(item.id, { bottles: currentBottles });
+                            showToast(`Added ${sz}ml bottle to ${item.name}`, 'success');
+                            input.value = '';
+                          }
+                        }}
+                        style={{ display: 'flex', gap: '4px', alignItems: 'center' }}
+                      >
+                        <input 
+                          name="custom-size"
+                          type="number"
+                          placeholder="ml"
+                          min="1"
+                          max="10000"
+                          style={{ 
+                            width: '70px', 
+                            padding: '2px 6px', 
+                            fontSize: '0.8rem', 
+                            height: '24px',
+                            background: 'rgba(0,0,0,0.2)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '4px',
+                            color: '#fff'
+                          }}
+                          required
+                        />
+                        <button 
+                          type="submit" 
+                          style={{ 
+                            padding: '2px 8px', 
+                            fontSize: '0.8rem', 
+                            height: '24px',
+                            lineHeight: '1',
+                            display: 'flex',
+                            alignItems: 'center',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          + Add
+                        </button>
+                      </form>
+                    </div>
                   </div>
                 </div>
               </div>

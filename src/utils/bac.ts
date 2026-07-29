@@ -82,6 +82,8 @@ export interface InventoryItem {
   quantity: number; // count of whole units remaining
   remainingVolume: number; // ml remaining in the active container
   calories?: number; // optional kcal
+  bottles?: number[]; // volumes of unopened bottles/units
+  activeContainerVolume?: number; // volume of current active container
 }
 
 /**
