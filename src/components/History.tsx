@@ -33,6 +33,8 @@ function History({ onEditClick }: { onEditClick: (drink: Drink) => void }) {
   const avgWeeklyStandardDrinks = totalStandardDrinks / weeksElapsed;
   const avgWeeklyAlcohol = totalAlcohol / weeksElapsed;
   const avgWeeklyCalories = totalCalories / weeksElapsed;
+  const avgDrinksPerSession = sessions.length > 0 ? totalDrinks / sessions.length : 0;
+  const avgStandardDrinksPerSession = sessions.length > 0 ? totalStandardDrinks / sessions.length : 0;
 
   const formatDate = (ts: number) => {
     return new Date(ts).toLocaleDateString([], { 
@@ -90,9 +92,13 @@ function History({ onEditClick }: { onEditClick: (drink: Drink) => void }) {
               <span className="label">Avg Wkly Calories</span>
               <strong>{avgWeeklyCalories.toFixed(0)} kcal</strong>
             </div>
-            <div className="stat-item" style={{ gridColumn: 'span 2' }}>
+            <div className="stat-item">
               <span className="label">Highest Recorded BAC</span>
               <strong style={{ color: 'var(--danger)' }}>{formatBAC(highestBAC, profile.displayUnit)}{profile.displayUnit}</strong>
+            </div>
+            <div className="stat-item">
+              <span className="label">Avg Drinks / Session</span>
+              <strong>{avgDrinksPerSession.toFixed(1)} <small>({avgStandardDrinksPerSession.toFixed(1)} std)</small></strong>
             </div>
           </div>
         </div>
