@@ -78,7 +78,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Build Docker images
-        run: docker compose build
+        run: JWT_SECRET=ci-test-secret-must-be-at-least-32-chars docker compose build
 
       - name: Run Trivy vulnerability scanner (API)
         uses: aquasecurity/trivy-action@v0.36.0
