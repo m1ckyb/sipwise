@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed PWA registerType to `'prompt'` in `vite.config.ts` so users are prompted to refresh to the new version when updates are released, instead of silently updating and showing the "App ready to work offline" message.
 
 ### Fixed
+- Fixed backend Hono rate limit middleware failing to start in Docker container due to incorrect conninfo helper import path (`ERR_PACKAGE_PATH_NOT_EXPORTED`).
 - Fixed GitHub Actions Docker build job failure due to missing JWT_SECRET environment variable during the docker compose build step.
 - Fixed backend data-sync validation schema (Zod) stripping out new inventory fields (`bottles` and `activeContainerVolume`), ensuring they persist correctly after synchronizing with the cloud database.
 

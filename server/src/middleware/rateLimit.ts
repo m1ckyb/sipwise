@@ -1,7 +1,6 @@
 import type { Context } from 'hono';
 import { db } from '../db.js';
-// @ts-expect-error - Hono subpath helper types can resolve incorrectly without bundler context
-import { getConnInfo } from 'hono/helper/conninfo';
+import { getConnInfo } from '@hono/node-server/conninfo';
 
 export function getClientIp(c: Context): string {
   const xRealIp = c.req.header('x-real-ip');
