@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8] - 2026-08-05
+
+### Fixed
+- Enabled Row-Level Security (RLS) on `public.rate_limits` and `public.sipwise_token_blacklist` tables to resolve `rls_disabled_in_public` and `sensitive_columns_exposed` security vulnerabilities.
+
 ## [0.2.7] - 2026-08-03
 
 ### Added
