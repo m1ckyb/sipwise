@@ -54,6 +54,9 @@ jobs:
       - name: Deploy Database Migrations 🗄️
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+          supabase migration repair --status applied 20260719182000 --password "$SUPABASE_DB_PASSWORD"
+          supabase migration repair --status applied 20260719183500 --password "$SUPABASE_DB_PASSWORD"
+          supabase migration repair --status applied 20260728215000 --password "$SUPABASE_DB_PASSWORD"
           supabase db push --password "$SUPABASE_DB_PASSWORD"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
