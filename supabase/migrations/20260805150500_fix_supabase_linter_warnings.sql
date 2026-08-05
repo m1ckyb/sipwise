@@ -9,10 +9,6 @@ alter function public.add_drink_atomic(uuid, text, numeric, numeric, numeric, ti
 revoke execute on function public.check_rate_limit(text, integer, integer) from public, anon, authenticated;
 revoke execute on function public.add_drink_atomic(uuid, text, numeric, numeric, numeric, timestamp with time zone) from public, anon, authenticated;
 
--- 3. Move extensions out of the public schema to extensions schema
-create schema if not exists extensions;
-alter extension pg_net set schema extensions;
-alter extension pg_cron set schema extensions;
 
 -- 4. Drop overly permissive RLS policy on push_subscriptions if it exists
 drop policy if exists "Allow insert access for all" on public.push_subscriptions;
