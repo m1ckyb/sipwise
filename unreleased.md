@@ -3,6 +3,7 @@
 - Added Supabase database migration `20260805150500_fix_supabase_linter_warnings.sql` to resolve database linter warnings.
 
 ### Changed
+- Updated GitHub Actions deployment workflow `deploy.yml` to automatically push database migrations (`supabase db push`) to Supabase when pushing to `main`.
 
 ### Fixed
 - Fixed Sober Alerts Cron decryption bug by decrypting user profiles and drink records before calculating BAC.
