@@ -36,7 +36,10 @@ export async function authMiddleware(c: Context<Env>, next: Next) {
   const token = authHeader.slice(7);
 
   try {
-    // Check if token is blacklisted
+    const payload = verifyToken(token);
+    c.set('userId', payload.sub);
+
+    // Check if token is blacklisted only after signature is validated
     const { rows } = await db.query(
       'SELECT 1 FROM sipwise_token_blacklist WHERE token = $1',
       [token]
@@ -45,8 +48,6 @@ export async function authMiddleware(c: Context<Env>, next: Next) {
       return c.json({ error: 'Token is revoked' }, 401);
     }
 
-    const payload = verifyToken(token);
-    c.set('userId', payload.sub);
     await next();
   } catch {
     return c.json({ error: 'Invalid or expired token' }, 401);

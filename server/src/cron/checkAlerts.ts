@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { db } from '../db.js';
 import { calculateBAC, type Drink, type Profile } from '../utils/bac.js';
+import { decryptData } from '../utils/crypto.js';
 import { vapidConfigured, webpush } from '../utils/vapid.js';
 import { logger } from '../utils/logger.js';
 
@@ -36,12 +37,17 @@ async function checkAlerts() {
       );
 
       let alertsSent = 0;
+      const soberIds: string[] = [];
+      const activeIds: string[] = [];
 
       for (const user of users) {
         if (!user.profile || !user.drinks) continue;
 
-        const profile: Profile = user.profile;
-        const drinks: Drink[] = user.drinks;
+        const profile = decryptData(user.profile, user.id) as Profile | null;
+        const drinks = (decryptData(user.drinks, user.id) as Drink[]) || [];
+
+        if (!profile) continue;
+
         const currentBAC = calculateBAC(drinks, profile);
         const wasSober = user.is_sober ?? true;
         const isSoberNow = currentBAC === 0;
@@ -67,10 +73,17 @@ async function checkAlerts() {
             }
           }
 
-          await db.query('UPDATE sipwise_user_data SET is_sober = true WHERE id = $1', [user.id]);
+          soberIds.push(user.id);
         } else if (!isSoberNow && wasSober) {
-          await db.query('UPDATE sipwise_user_data SET is_sober = false WHERE id = $1', [user.id]);
+          activeIds.push(user.id);
         }
+      }
+
+      if (soberIds.length > 0) {
+        await db.query('UPDATE sipwise_user_data SET is_sober = true, updated_at = now() WHERE id = ANY($1)', [soberIds]);
+      }
+      if (activeIds.length > 0) {
+        await db.query('UPDATE sipwise_user_data SET is_sober = false, updated_at = now() WHERE id = ANY($1)', [activeIds]);
       }
 
       if (alertsSent > 0) {

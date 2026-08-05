@@ -20,6 +20,13 @@ const app = new Hono();
 
 // Middleware — order matters
 app.use('*', requestId);
+app.use('*', async (c, next) => {
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'SAMEORIGIN');
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  c.header('X-XSS-Protection', '1; mode=block');
+  await next();
+});
 app.use('*', honoLogger());
 app.use('*', cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',').map(s => s.trim()).filter(Boolean) || ['http://localhost:8080'],

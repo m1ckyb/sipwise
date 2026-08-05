@@ -2,16 +2,17 @@ import crypto from 'crypto';
 
 const ENCRYPTION_SECRET = process.env.ENCRYPTION_SECRET;
 
-// Ensure server refuses to run without secure encryption keys
-if (process.env.NODE_ENV === 'production' || ENCRYPTION_SECRET) {
+// Ensure server refuses to run without secure encryption keys in production/staging
+if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
   if (!ENCRYPTION_SECRET) {
     console.error('[SipWise] FATAL: ENCRYPTION_SECRET environment variable is not set. Refusing to start.');
     process.exit(1);
   }
-  if (ENCRYPTION_SECRET.length < 32) {
-    console.error('[SipWise] FATAL: ENCRYPTION_SECRET must be at least 32 characters. Refusing to start.');
-    process.exit(1);
-  }
+}
+
+if (ENCRYPTION_SECRET && ENCRYPTION_SECRET.length < 32) {
+  console.error('[SipWise] FATAL: ENCRYPTION_SECRET must be at least 32 characters. Refusing to start.');
+  process.exit(1);
 }
 
 // Fallback secret for local development/CI environments only
