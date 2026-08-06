@@ -154,7 +154,6 @@ describe('POST /api/auth/login', () => {
       email: VALID_EMAIL,
       password: VALID_PASSWORD,
     });
-    const body = await res.json();
 
     expect(res.status).toBe(200);
     const cookies = res.headers.get('set-cookie');

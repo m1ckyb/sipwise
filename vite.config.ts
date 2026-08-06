@@ -1,9 +1,13 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  test: {
+    exclude: ['**/node_modules/**', '**/dist/**', 'server/dist/**'],
+  },
   base: '/', // Change this to your repository name
   plugins: [
     react(),
