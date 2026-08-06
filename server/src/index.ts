@@ -94,12 +94,12 @@ app.get('/api/metrics', async (c) => {
 });
 
 // Routes
-app.route('/api/auth', authRoutes);
-app.route('/api/data', dataRoutes);
-app.route('/api/push-subscriptions', pushRoutes);
-app.route('/api/logs', logsRoutes);
-app.route('/api/bac', apiRoutes);
-app.route('/api/keys', apiKeysRoutes);
+app.route('/api/v1/auth', authRoutes);
+app.route('/api/v1/data', dataRoutes);
+app.route('/api/v1/push-subscriptions', pushRoutes);
+app.route('/api/v1/logs', logsRoutes);
+app.route('/api/v1/bac', apiRoutes);
+app.route('/api/v1/keys', apiKeysRoutes);
 
 // 404 fallback
 app.notFound((c) => c.json({ error: 'Not found' }, 404));

@@ -1,5 +1,5 @@
 /**
- * Integration tests for /api/auth routes.
+ * Integration tests for /api/v1/auth routes.
  * DB and dependencies are mocked so no real database is needed.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -32,7 +32,7 @@ const mockRateLimit = checkRateLimit as ReturnType<typeof vi.fn>;
 // Mount routes on a fresh app for each test
 function buildApp() {
   const app = new Hono();
-  app.route('/api/auth', authRoutes);
+  app.route('/api/v1/auth', authRoutes);
   return app;
 }
 
@@ -53,7 +53,7 @@ const VALID_EMAIL = 'test@example.com';
 const VALID_PASSWORD = 'Password1';
 const USER_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
-describe('POST /api/auth/signup', () => {
+describe('POST /api/v1/auth/signup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRateLimit.mockResolvedValue({ allowed: true, count: 1, max: 10, remaining: 9, resetAt: Date.now() + 60000 });
@@ -65,7 +65,7 @@ describe('POST /api/auth/signup', () => {
       .mockResolvedValueOnce({ rows: [{ id: USER_ID, email: VALID_EMAIL }] }); // insert user
 
     const app = buildApp();
-    const res = await jsonReq(app, 'POST', '/api/auth/signup', {
+    const res = await jsonReq(app, 'POST', '/api/v1/auth/signup', {
       email: VALID_EMAIL,
       password: VALID_PASSWORD,
     });
@@ -82,7 +82,7 @@ describe('POST /api/auth/signup', () => {
     mockDb.query.mockResolvedValueOnce({ rows: [{ id: USER_ID }] }); // existing email found
 
     const app = buildApp();
-    const res = await jsonReq(app, 'POST', '/api/auth/signup', {
+    const res = await jsonReq(app, 'POST', '/api/v1/auth/signup', {
       email: VALID_EMAIL,
       password: VALID_PASSWORD,
     });
@@ -94,7 +94,7 @@ describe('POST /api/auth/signup', () => {
 
   it('returns 400 on invalid email format', async () => {
     const app = buildApp();
-    const res = await jsonReq(app, 'POST', '/api/auth/signup', {
+    const res = await jsonReq(app, 'POST', '/api/v1/auth/signup', {
       email: 'not-an-email',
       password: VALID_PASSWORD,
     });
@@ -103,7 +103,7 @@ describe('POST /api/auth/signup', () => {
 
   it('returns 400 when password is too weak (no uppercase)', async () => {
     const app = buildApp();
-    const res = await jsonReq(app, 'POST', '/api/auth/signup', {
+    const res = await jsonReq(app, 'POST', '/api/v1/auth/signup', {
       email: VALID_EMAIL,
       password: 'nouppercase1',
     });
@@ -114,7 +114,7 @@ describe('POST /api/auth/signup', () => {
 
   it('returns 400 when password is too weak (no digit)', async () => {
     const app = buildApp();
-    const res = await jsonReq(app, 'POST', '/api/auth/signup', {
+    const res = await jsonReq(app, 'POST', '/api/v1/auth/signup', {
       email: VALID_EMAIL,
       password: 'NoDigitHere',
     });
@@ -127,7 +127,7 @@ describe('POST /api/auth/signup', () => {
     mockRateLimit.mockResolvedValue({ allowed: false, count: 11, max: 10, remaining: 0, resetAt: Date.now() + 60000 });
 
     const app = buildApp();
-    const res = await jsonReq(app, 'POST', '/api/auth/signup', {
+    const res = await jsonReq(app, 'POST', '/api/v1/auth/signup', {
       email: VALID_EMAIL,
       password: VALID_PASSWORD,
     });
@@ -135,7 +135,7 @@ describe('POST /api/auth/signup', () => {
   });
 });
 
-describe('POST /api/auth/login', () => {
+describe('POST /api/v1/auth/login', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRateLimit.mockResolvedValue({ allowed: true, count: 1, max: 15, remaining: 14, resetAt: Date.now() + 60000 });
@@ -150,7 +150,7 @@ describe('POST /api/auth/login', () => {
     });
 
     const app = buildApp();
-    const res = await jsonReq(app, 'POST', '/api/auth/login', {
+    const res = await jsonReq(app, 'POST', '/api/v1/auth/login', {
       email: VALID_EMAIL,
       password: VALID_PASSWORD,
     });
@@ -170,7 +170,7 @@ describe('POST /api/auth/login', () => {
     });
 
     const app = buildApp();
-    const res = await jsonReq(app, 'POST', '/api/auth/login', {
+    const res = await jsonReq(app, 'POST', '/api/v1/auth/login', {
       email: VALID_EMAIL,
       password: 'WrongPass1',
     });
@@ -184,7 +184,7 @@ describe('POST /api/auth/login', () => {
     mockDb.query.mockResolvedValueOnce({ rows: [] }); // no user found
 
     const app = buildApp();
-    const res = await jsonReq(app, 'POST', '/api/auth/login', {
+    const res = await jsonReq(app, 'POST', '/api/v1/auth/login', {
       email: 'unknown@example.com',
       password: VALID_PASSWORD,
     });
@@ -193,7 +193,7 @@ describe('POST /api/auth/login', () => {
 
   it('returns 400 for missing password', async () => {
     const app = buildApp();
-    const res = await jsonReq(app, 'POST', '/api/auth/login', {
+    const res = await jsonReq(app, 'POST', '/api/v1/auth/login', {
       email: VALID_EMAIL,
     });
     expect(res.status).toBe(400);
@@ -203,7 +203,7 @@ describe('POST /api/auth/login', () => {
     mockRateLimit.mockResolvedValue({ allowed: false, count: 16, max: 15, remaining: 0, resetAt: Date.now() + 60000 });
 
     const app = buildApp();
-    const res = await jsonReq(app, 'POST', '/api/auth/login', {
+    const res = await jsonReq(app, 'POST', '/api/v1/auth/login', {
       email: VALID_EMAIL,
       password: VALID_PASSWORD,
     });
@@ -211,7 +211,7 @@ describe('POST /api/auth/login', () => {
   });
 });
 
-describe('GET /api/auth/me', () => {
+describe('GET /api/v1/auth/me', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns user data with a valid JWT', async () => {
@@ -225,7 +225,7 @@ describe('GET /api/auth/me', () => {
       .mockResolvedValueOnce({ rows: [{ id: USER_ID, email: VALID_EMAIL }] }); // SELECT user
 
     const app = buildApp();
-    const res = await jsonReq(app, 'GET', '/api/auth/me', undefined, {
+    const res = await jsonReq(app, 'GET', '/api/v1/auth/me', undefined, {
       Authorization: `Bearer ${token}`,
     });
     const body = await res.json();
@@ -236,20 +236,20 @@ describe('GET /api/auth/me', () => {
 
   it('returns 401 with no Authorization header', async () => {
     const app = buildApp();
-    const res = await app.fetch(new Request('http://localhost/api/auth/me'));
+    const res = await app.fetch(new Request('http://localhost/api/v1/auth/me'));
     expect(res.status).toBe(401);
   });
 
   it('returns 401 with a tampered token', async () => {
     const app = buildApp();
-    const res = await jsonReq(app, 'GET', '/api/auth/me', undefined, {
+    const res = await jsonReq(app, 'GET', '/api/v1/auth/me', undefined, {
       Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.tampered.signature',
     });
     expect(res.status).toBe(401);
   });
 });
 
-describe('POST /api/auth/logout', () => {
+describe('POST /api/v1/auth/logout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.JWT_SECRET = 'test_jwt_secret_minimum_32_chars_long!!';
@@ -264,7 +264,7 @@ describe('POST /api/auth/logout', () => {
       .mockResolvedValueOnce({ rows: [] }); // INSERT into blacklist
 
     const app = buildApp();
-    const res = await jsonReq(app, 'POST', '/api/auth/logout', undefined, {
+    const res = await jsonReq(app, 'POST', '/api/v1/auth/logout', undefined, {
       Authorization: `Bearer ${token}`,
     });
     const body = await res.json();
@@ -283,7 +283,7 @@ describe('POST /api/auth/logout', () => {
 
   it('returns 200 with no Authorization header (idempotent)', async () => {
     const app = buildApp();
-    const res = await app.fetch(new Request('http://localhost/api/auth/logout', { method: 'POST' }));
+    const res = await app.fetch(new Request('http://localhost/api/v1/auth/logout', { method: 'POST' }));
     expect(res.status).toBe(200);
   });
 });
