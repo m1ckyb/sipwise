@@ -1,4 +1,4 @@
-# Multi-stage build: Node build → Nginx serve
+# Multi-stage build: Node build → Caddy serve
 # Stage 1: Build
 FROM node:20-alpine AS build
 WORKDIR /app
@@ -8,9 +8,9 @@ COPY . .
 ARG VITE_API_URL=""
 RUN npm run build
 
-# Stage 2: Serve with Nginx
-FROM nginx:alpine
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+# Stage 2: Serve with Caddy (automatic TLS via Let's Encrypt)
+FROM caddy:alpine
+COPY docker/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/dist /usr/share/caddy
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 443

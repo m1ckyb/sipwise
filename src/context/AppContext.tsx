@@ -618,6 +618,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setLastSynced(null);
     localStorage.removeItem('sipwise_last_synced');
+    initialPullDone.current = false;
   }, []);
 
   // =============================================
@@ -639,13 +640,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Auth Listener
   useEffect(() => {
     if (isLocalMode) {
-      // Local mode: check for existing JWT token
-      const token = localStorage.getItem('sipwise_api_token');
-      if (token) {
-        apiGet<{ user: { id: string; email: string } }>('/api/auth/me')
-          .then(({ user: u }) => setUser(u as unknown as User))
-          .catch(() => { clearToken(); });
-      }
+      // Local mode: check auth state via HttpOnly cookie
+      apiGet<{ user: { id: string; email: string } }>('/api/auth/me')
+        .then(({ user: u }) => setUser(u as unknown as User))
+        .catch(() => { setUser(null); });
       return;
     }
 

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { encryptData, decryptData } from '../utils/crypto.js';
+import { encryptData, decryptData, DecryptionError } from '../utils/crypto.js';
 import type { Env } from '../types.js';
 
 const InventoryItemSchema = z.object({
@@ -71,15 +71,24 @@ data.get('/', async (c) => {
   );
   if (rows.length === 0) return c.json({ error: 'No data found' }, 404);
   
-  const decryptedData = {
-    profile: decryptData(rows[0].profile, userId),
-    drinks: decryptData(rows[0].drinks, userId),
-    presets: decryptData(rows[0].presets, userId),
-    is_sober: rows[0].is_sober,
-    updated_at: rows[0].updated_at,
-  };
-  
-  return c.json(decryptedData);
+  try {
+    const decryptedData = {
+      profile: decryptData(rows[0].profile, userId),
+      drinks: decryptData(rows[0].drinks, userId),
+      presets: decryptData(rows[0].presets, userId),
+      is_sober: rows[0].is_sober,
+      updated_at: rows[0].updated_at,
+    };
+    return c.json(decryptedData);
+  } catch (err) {
+    if (err instanceof DecryptionError) {
+      return c.json({
+        error: 'Your data could not be decrypted. This may be caused by a server configuration change. Please contact support — your data is still stored safely.',
+        code: 'DECRYPTION_FAILED',
+      }, 422);
+    }
+    throw err;
+  }
 });
 
 data.put('/', async (c) => {

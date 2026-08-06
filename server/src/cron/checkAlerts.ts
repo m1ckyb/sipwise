@@ -123,12 +123,26 @@ async function cleanupRateLimitEntries() {
   }
 }
 
+async function cleanupTokenBlacklist() {
+  try {
+    const { rowCount } = await db.query(
+      'DELETE FROM sipwise_token_blacklist WHERE expires_at < now()',
+    );
+    if (rowCount && rowCount > 0) {
+      logger.info({ deleted: rowCount }, 'Cleaned up expired token blacklist entries');
+    }
+  } catch (err) {
+    logger.error({ err }, 'Error cleaning up token blacklist');
+  }
+}
+
 export function startCron() {
   scheduledTasks.push(cron.schedule('*/5 * * * *', checkAlerts));
   scheduledTasks.push(cron.schedule('0 3 * * *', cleanupIdempotencyKeys));
   scheduledTasks.push(cron.schedule('0 * * * *', cleanupRateLimitEntries));
+  scheduledTasks.push(cron.schedule('0 * * * *', cleanupTokenBlacklist));
 
-  logger.info('Cron jobs scheduled (alerts/5min, idempotency/daily, rate limits/hourly)');
+  logger.info('Cron jobs scheduled (alerts/5min, idempotency/daily, rate-limits/hourly, blacklist/hourly)');
 }
 
 export function stopCron() {

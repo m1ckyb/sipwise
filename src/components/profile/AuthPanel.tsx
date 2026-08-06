@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { supabase } from '../../utils/supabase';
 import { isLocalMode } from '../../utils/mode';
-import { apiPost, setToken } from '../../utils/api';
+import { apiPost } from '../../utils/api';
 
 function AuthPanel() {
   const { 
@@ -20,8 +20,7 @@ function AuthPanel() {
     try {
       if (isLocalMode) {
         const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/signup';
-        const { token } = await apiPost<{ token: string }>(endpoint, { email, password });
-        setToken(token);
+        await apiPost(endpoint, { email, password });
         // Reload user from /me so AppContext picks up the new user
         window.location.reload();
       } else {

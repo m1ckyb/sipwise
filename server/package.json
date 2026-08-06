@@ -1,12 +1,14 @@
 {
   "name": "sipwise-server",
   "private": true,
-  "version": "0.2.0-rc3",
+  "version": "0.2.11",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "JWT_SECRET=test_jwt_secret_minimum_32_chars_long!! vitest run",
+    "test:watch": "JWT_SECRET=test_jwt_secret_minimum_32_chars_long!! vitest"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.3",
@@ -28,6 +30,7 @@
     "@types/pino": "^7.0.4",
     "@types/web-push": "^3.6.4",
     "tsx": "^4.19.5",
-    "typescript": "~5.8.3"
+    "typescript": "~5.8.3",
+    "vitest": "^3.0.0"
   }
 }

@@ -48,6 +48,10 @@ apiKeys.delete('/:id', async (c) => {
   const userId = c.get('userId') as string;
   const keyId = c.req.param('id');
 
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(keyId)) {
+    return c.json({ error: 'Invalid ID format' }, 400);
+  }
+
   const { rows } = await db.query(
     'SELECT id, name FROM sipwise_api_keys WHERE id = $1 AND user_id = $2',
     [keyId, userId],

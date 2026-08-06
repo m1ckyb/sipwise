@@ -33,14 +33,15 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (min 32 chars)}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET:?Set ENCRYPTION_SECRET in .env (min 32 chars)}
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=200"
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
       PORT: "3000"
       LOG_LEVEL: ${LOG_LEVEL:-info}
       BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080}
-    ports:
-      - "3000:3000"
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS in .env (e.g. https://yourdomain.com)}
+      TRUST_PROXY: "true"
+    # Port 3000 is NOT exposed externally — all traffic routes through Caddy
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health || exit 1"]
       interval: 10s
@@ -61,10 +62,18 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+    environment:
+      # Set to your domain name for automatic TLS via Let's Encrypt.
+      # Use localhost (default) for local development — Caddy uses its internal CA.
+      DOMAIN: ${DOMAIN:-localhost}
     ports:
-      - "${PORT:-8080}:80"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/api/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -87,7 +96,7 @@ services:
     entrypoint: >
       sh -c 'mkdir -p /backups && while true; do
         echo "[$(date -Iseconds)] Starting backup...";
-        pg_dump -U sipwise -h pg sipwise | gzip > /backups/sipwise_$$(date +%Y%m%d_%H%M%S).sql.gz;
+        pg_dump -U sipwise -h pg sipwise | gzip > /backups/sipwise_$$(date +%Y%m%d_%H%M%S).sql.gz && gunzip -t /backups/sipwise_$$(date +%Y%m%d_%H%M%S).sql.gz 2>/dev/null || echo "[$(date -Iseconds)] WARNING: Backup integrity check failed!";
         find /backups -name "*.sql.gz" -mtime +30 -delete;
         echo "[$(date -Iseconds)] Backup complete. Next backup in 24h.";
         sleep 86400;
@@ -95,3 +104,5 @@ services:
 
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:

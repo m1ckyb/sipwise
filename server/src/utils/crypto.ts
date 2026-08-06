@@ -28,6 +28,21 @@ interface EncryptedPayload {
   encryptedData: string;
 }
 
+/**
+ * Thrown when AES-256-GCM authentication tag verification fails or the ciphertext
+ * cannot be decrypted. Callers must surface this as a 422 to the client — showing
+ * empty state silently is not acceptable.
+ */
+export class DecryptionError extends Error {
+  constructor(cause?: unknown) {
+    super('Data decryption failed — the encryption key may have changed or data may be corrupt');
+    this.name = 'DecryptionError';
+    if (cause instanceof Error) {
+      this.cause = cause;
+    }
+  }
+}
+
 export function encryptData(data: unknown, userId: string): EncryptedPayload | null {
   if (data === null || data === undefined) return null;
   
@@ -71,7 +86,7 @@ export function decryptData(payload: unknown, userId: string): unknown {
     
     return JSON.parse(decrypted.toString('utf8'));
   } catch (err) {
-    console.error('[SipWise] Decryption failed, returning null context:', err);
-    return null;
+    console.error('[SipWise] Decryption failed — throwing DecryptionError:', err);
+    throw new DecryptionError(err);
   }
 }

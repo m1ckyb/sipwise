@@ -24,15 +24,12 @@ export async function checkRateLimit(
   key: string,
   maxRequests = 60,
   windowSeconds = 60,
-): Promise<{ allowed: boolean; count: number; max: number }> {
+): Promise<{ allowed: boolean; count: number; max: number; remaining: number; resetAt: number }> {
   const now = new Date();
   const windowStartLimit = new Date(now.getTime() - windowSeconds * 1000);
 
   try {
-    // 1. Clean up expired keys from the table to prevent infinite table growth
-    await db.query('DELETE FROM sipwise_rate_limits WHERE window_start < $1', [windowStartLimit.toISOString()]);
-
-    // 2. Perform atomic increment/upsert query
+    // Perform atomic increment/upsert query
     const { rows } = await db.query(
       `INSERT INTO sipwise_rate_limits (key, request_count, window_start)
        VALUES ($1, 1, $2)
@@ -45,12 +42,16 @@ export async function checkRateLimit(
            WHEN sipwise_rate_limits.window_start < $2 THEN $2
            ELSE sipwise_rate_limits.window_start
          END
-       RETURNING request_count`,
-      [key, now.toISOString()],
+       RETURNING request_count, window_start`,
+      [key, windowStartLimit.toISOString()],
     );
 
     const count = rows[0]?.request_count || 1;
-    return { allowed: count <= maxRequests, count, max: maxRequests };
+    const windowStart = new Date(rows[0]?.window_start || windowStartLimit.toISOString());
+    const resetAt = windowStart.getTime() + windowSeconds * 1000;
+    const remaining = Math.max(0, maxRequests - count);
+
+    return { allowed: count <= maxRequests, count, max: maxRequests, remaining, resetAt };
   } catch {
     // Fall back to in-memory rate limiter if database is offline or query fails
     return checkRateLimitInMemory(key, maxRequests, windowSeconds);
@@ -81,7 +82,7 @@ function checkRateLimitInMemory(
   key: string,
   maxRequests = 60,
   windowSeconds = 60,
-): { allowed: boolean; count: number; max: number } {
+): { allowed: boolean; count: number; max: number; remaining: number; resetAt: number } {
   purgeExpiredEntries();
   const now = Date.now();
   const windowMs = windowSeconds * 1000;
@@ -90,9 +91,10 @@ function checkRateLimitInMemory(
   if (!entry || entry.resetAt <= now) {
     const newEntry = { count: 1, resetAt: now + windowMs };
     memoryStore.set(key, newEntry);
-    return { allowed: true, count: 1, max: maxRequests };
+    return { allowed: true, count: 1, max: maxRequests, remaining: maxRequests - 1, resetAt: newEntry.resetAt };
   }
 
   entry.count += 1;
-  return { allowed: entry.count <= maxRequests, count: entry.count, max: maxRequests };
+  const remaining = Math.max(0, maxRequests - entry.count);
+  return { allowed: entry.count <= maxRequests, count: entry.count, max: maxRequests, remaining, resetAt: entry.resetAt };
 }

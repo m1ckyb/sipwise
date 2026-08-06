@@ -137,12 +137,14 @@ CREATE OR REPLACE TRIGGER set_push_subscriptions_updated_at
 
 -- ============================================================
 -- 10. Token Blacklist (for JWT session invalidation)
+-- Stores SHA-256(token), NOT the raw JWT, to limit exposure if the DB is breached.
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sipwise_token_blacklist (
-  token TEXT PRIMARY KEY,
+  token_hash TEXT PRIMARY KEY,  -- SHA-256 hex digest of the JWT
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires_at
   ON sipwise_token_blacklist(expires_at);
+

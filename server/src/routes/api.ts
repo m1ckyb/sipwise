@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db.js';
 import { checkRateLimit, getClientIp } from '../middleware/rateLimit.js';
-import { encryptData, decryptData } from '../utils/crypto.js';
+import { encryptData, decryptData, DecryptionError } from '../utils/crypto.js';
 import { calculateBAC, calculateTimeToZero, estimateCalories, type Drink, type Profile } from '../utils/bac.js';
 import type { Env } from '../types.js';
 
@@ -56,6 +56,9 @@ api.get('/bac', async (c) => {
   const ip = getClientIp(c);
   const ipRateLimit = await checkRateLimit(`rate_limit_api_ip:${ip}`, 60, 60);
   if (!ipRateLimit.allowed) {
+    c.header('X-RateLimit-Limit', ipRateLimit.max.toString());
+    c.header('X-RateLimit-Remaining', ipRateLimit.remaining.toString());
+    c.header('Retry-After', Math.ceil(Math.max(0, ipRateLimit.resetAt - Date.now()) / 1000).toString());
     return c.json({ error: 'Too many API requests. Rate limit exceeded (60 req/min per IP).' }, 429, headers);
   }
 
@@ -66,6 +69,9 @@ api.get('/bac', async (c) => {
 
   const rateLimitResult = await checkRateLimit(`rate_limit:${auth.userId}`);
   if (!rateLimitResult.allowed) {
+    c.header('X-RateLimit-Limit', rateLimitResult.max.toString());
+    c.header('X-RateLimit-Remaining', rateLimitResult.remaining.toString());
+    c.header('Retry-After', Math.ceil(Math.max(0, rateLimitResult.resetAt - Date.now()) / 1000).toString());
     return c.json({ error: 'Too many requests. Rate limit exceeded (60 req/min).' }, 429, headers);
   }
 
@@ -77,11 +83,20 @@ api.get('/bac', async (c) => {
     return c.json({ error: 'User data not found' }, 404, headers);
   }
 
-  const profile = decryptData(rows[0].profile, auth.userId) as Profile | null;
+  let profile: Profile | null;
+  let drinks: Drink[];
+  try {
+    profile = decryptData(rows[0].profile, auth.userId) as Profile | null;
+    drinks = (decryptData(rows[0].drinks, auth.userId) as Drink[]) || [];
+  } catch (err) {
+    if (err instanceof DecryptionError) {
+      return c.json({ error: 'Data decryption failed. Please contact support.' }, 422, headers);
+    }
+    throw err;
+  }
   if (!profile) {
     return c.json({ error: 'Profile not initialized. Please complete setup in frontend first.' }, 400, headers);
   }
-  const drinks = (decryptData(rows[0].drinks, auth.userId) as Drink[]) || [];
   const now = Date.now();
 
   const parsedDrinks = drinks.map(d => ({
@@ -97,7 +112,7 @@ api.get('/bac', async (c) => {
 
   const url = new URL(c.req.url);
   const limitParam = url.searchParams.get('limit');
-  const limit = limitParam ? parseInt(limitParam, 10) : 50;
+  const limit = Math.min(Math.max(parseInt(limitParam || '50', 10), 1), 200);
 
   return c.json({
     current_bac: parseFloat(currentBac.toFixed(4)),
@@ -132,6 +147,9 @@ api.post('/bac', async (c) => {
   const ip = getClientIp(c);
   const ipRateLimit = await checkRateLimit(`rate_limit_api_ip:${ip}`, 60, 60);
   if (!ipRateLimit.allowed) {
+    c.header('X-RateLimit-Limit', ipRateLimit.max.toString());
+    c.header('X-RateLimit-Remaining', ipRateLimit.remaining.toString());
+    c.header('Retry-After', Math.ceil(Math.max(0, ipRateLimit.resetAt - Date.now()) / 1000).toString());
     return c.json({ error: 'Too many API requests. Rate limit exceeded (60 req/min per IP).' }, 429, headers);
   }
 
@@ -142,6 +160,9 @@ api.post('/bac', async (c) => {
 
   const rateLimitResult = await checkRateLimit(`rate_limit:${auth.userId}`);
   if (!rateLimitResult.allowed) {
+    c.header('X-RateLimit-Limit', rateLimitResult.max.toString());
+    c.header('X-RateLimit-Remaining', rateLimitResult.remaining.toString());
+    c.header('Retry-After', Math.ceil(Math.max(0, rateLimitResult.resetAt - Date.now()) / 1000).toString());
     return c.json({ error: 'Too many requests. Rate limit exceeded (60 req/min).' }, 429, headers);
   }
 
@@ -168,8 +189,17 @@ api.post('/bac', async (c) => {
     return c.json({ error: 'User data not found' }, 404, headers);
   }
 
-  const drinks = (decryptData(rows[0].drinks, auth.userId) as Drink[]) || [];
-  const profile = decryptData(rows[0].profile, auth.userId) as Profile | null;
+  let drinks: Drink[];
+  let profile: Profile | null;
+  try {
+    drinks = (decryptData(rows[0].drinks, auth.userId) as Drink[]) || [];
+    profile = decryptData(rows[0].profile, auth.userId) as Profile | null;
+  } catch (err) {
+    if (err instanceof DecryptionError) {
+      return c.json({ error: 'Data decryption failed. Please contact support.' }, 422, headers);
+    }
+    throw err;
+  }
   if (!profile) {
     return c.json({ error: 'Profile not initialized. Please complete setup in frontend first.' }, 400, headers);
   }

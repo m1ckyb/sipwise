@@ -10,7 +10,13 @@ export const csrfProtection: MiddlewareHandler = async (c, next) => {
     return next();
   }
 
-  if (allowedOrigins.length === 0) return next();
+  if (allowedOrigins.length === 0) {
+    // Fail closed in production — misconfigured ALLOWED_ORIGINS must not silently disable CSRF
+    if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
+      return c.json({ error: 'CSRF validation failed: server is misconfigured (ALLOWED_ORIGINS not set)' }, 403);
+    }
+    return next();
+  }
 
   const origin = c.req.header('origin');
   const referer = c.req.header('referer');

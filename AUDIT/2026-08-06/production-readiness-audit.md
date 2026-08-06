@@ -1021,7 +1021,7 @@ These MUST be fixed before any paying customer uses this product:
 - Move JWT from localStorage to HttpOnly cookies.
 - Fix push subscription check IDOR (SEC-004).
 - Fix `initialPullDone.current` not resetting on logout.
-- Implement password reset via email.
+- Implement password reset via email. *(Note: Deferred pending SMTP/Email service integration)*
 - Validate all path parameters (UUID format check).
 - Add `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `Retry-After` headers to 429 responses.
 

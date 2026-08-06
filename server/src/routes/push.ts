@@ -13,10 +13,11 @@ const push = new Hono<Env>();
 push.use('*', authMiddleware);
 
 push.get('/check/:endpoint', async (c) => {
+  const userId = c.get('userId') as string;
   const endpoint = c.req.param('endpoint');
   const { rows } = await db.query(
-    'SELECT endpoint FROM sipwise_push_subscriptions WHERE endpoint = $1',
-    [endpoint],
+    'SELECT endpoint FROM sipwise_push_subscriptions WHERE endpoint = $1 AND user_id = $2',
+    [endpoint, userId],
   );
   return c.json({ synced: rows.length > 0 });
 });
@@ -43,8 +44,12 @@ push.post('/', async (c) => {
 });
 
 push.delete('/:endpoint', async (c) => {
+  const userId = c.get('userId') as string;
   const endpoint = decodeURIComponent(c.req.param('endpoint'));
-  await db.query('DELETE FROM sipwise_push_subscriptions WHERE endpoint = $1', [endpoint]);
+  await db.query(
+    'DELETE FROM sipwise_push_subscriptions WHERE endpoint = $1 AND user_id = $2',
+    [endpoint, userId],
+  );
   return c.json({ success: true });
 });
 

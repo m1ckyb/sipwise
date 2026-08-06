@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.11] - 2026-08-06
+
+### Added
+- **Rate Limit Headers**: Added `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `Retry-After` headers to `429 Too Many Requests` responses.
+- **Refresh Token Rotation**: Implemented a `/api/auth/refresh` endpoint to rotate access and refresh tokens.
+- **TLS/HTTPS**: Replaced Nginx with Caddy for automatic TLS via Let's Encrypt. Set `DOMAIN=yourdomain.com` in `.env` for production; defaults to `localhost` with Caddy's internal CA for development.
+- **Token blacklist cleanup cron**: Added hourly cron job to delete expired entries from the token blacklist table, preventing unbounded table growth.
+- **Server integration tests**: Added vitest test suite for auth routes (`signup`, `login`, `GET /me`, `logout`) covering 15 scenarios including validation failures, rate limiting, tampered tokens, and blacklist hash verification.
+- **DecryptionError class**: Exported typed error class from `crypto.ts` for explicit decryption failure handling.
+- **Caddyfile**: New `docker/Caddyfile` with API proxy, SPA fallback, security headers, and HSTS.
+
+### Changed
+- **JWT Storage**: Moved JWT storage from localStorage to `HttpOnly` cookies. Access tokens now expire in 15 minutes, while refresh tokens expire in 7 days.
+- **Auth Headers**: The frontend now sends `credentials: 'include'` on all API requests instead of using `Authorization: Bearer` headers for local mode authentication.
+- **Token blacklist now stores SHA-256(token) hash** instead of raw JWT string, preventing full token corpus exposure if the database is breached. Existing blacklisted tokens are cleared on migration (users must re-logout if desired).
+- **Decryption failures now return HTTP 422** with a clear error message instead of silently showing empty state. Users are told their data is still stored safely and to contact support.
+- **CSRF middleware fails closed in production** when `ALLOWED_ORIGINS` is not configured, instead of silently becoming a no-op.
+- **Rate limit hot path**: Removed inline `DELETE FROM sipwise_rate_limits` that fired on every request (write amplification). Hourly cron cleanup is sufficient.
+- **CSP header added**: Replaced deprecated `X-XSS-Protection` with a `Content-Security-Policy` header. `X-Frame-Options` strengthened from `SAMEORIGIN` to `DENY`.
+- **`limit` query param clamped** to `[1, 200]` in `GET /api/bac` to prevent unbounded response payloads.
+- **API container port 3000 no longer exposed** externally; all traffic routes through Caddy.
+- **`docker-compose.yml`**: Added `NODE_OPTIONS: --max-old-space-size=200` to API service, `DOMAIN` and Caddy volume support to frontend, backup integrity check (`gunzip -t`), fixed frontend healthcheck to test its own static content.
+- **Supabase migration** `20260806214500`: Renames `sipwise_token_blacklist.token` → `token_hash`; fixes `push_subscriptions` RLS to remove all unauthenticated-access conditions.
+
+### Fixed
+- **Auth Sync Bug**: Fixed a bug where `initialPullDone.current` wasn't resetting on logout, causing the app to fail to pull cloud data on subsequent logins without a hard refresh.
+- **UUID Validation**: Added UUID format validation to the `DELETE /api/keys/:id` route path parameter.
+- **SEC-003/SEC-004**: Push subscription `DELETE` and check `GET` now filter by `user_id`, preventing IDOR where any authenticated user could unsubscribe or probe any other user's push endpoint.
+- Fixed database migrations push command in GitHub Actions deployment workflow by linking the project before executing `supabase db push`.
+- Secured `supabase link` and `db push` credentials using GitHub env variables to prevent shell parsing failures with special characters.
+- Added migration repair steps in deploy workflow to mark pre-existing migrations as applied on the remote database.
+- Removed unsupported `pg_net` and `pg_cron` schema move statements from the database linter fixes migration, as they are restricted by the managed Supabase environment.
+
+### Removed
+- Removed deprecated `X-XSS-Protection` response header (superseded by CSP).
+
 ## [0.2.10] - 2026-08-05
 
 ### Added

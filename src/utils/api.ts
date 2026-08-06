@@ -4,14 +4,6 @@ const TOKEN_KEY = 'sipwise_api_token';
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_RETRIES = 2;
 
-function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-export function setToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token);
-}
-
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
@@ -26,11 +18,6 @@ async function request<T = unknown>(
     'Content-Type': 'application/json',
   };
 
-  const token = getToken();
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
@@ -38,6 +25,7 @@ async function request<T = unknown>(
     const res = await fetch(`${API_URL}${path}`, {
       method,
       headers,
+      credentials: 'include',
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });

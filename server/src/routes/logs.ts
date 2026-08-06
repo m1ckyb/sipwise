@@ -50,6 +50,9 @@ logs.post('/', async (c) => {
   const ip = getClientIp(c);
   const rateLimitResult = await checkRateLimit(`rate_limit_logs:${ip}`, 30, 60);
   if (!rateLimitResult.allowed) {
+    c.header('X-RateLimit-Limit', rateLimitResult.max.toString());
+    c.header('X-RateLimit-Remaining', rateLimitResult.remaining.toString());
+    c.header('Retry-After', Math.ceil(Math.max(0, rateLimitResult.resetAt - Date.now()) / 1000).toString());
     return c.json({ error: 'Too many log submissions. Rate limit exceeded.' }, 429);
   }
 
