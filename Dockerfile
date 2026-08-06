@@ -1,6 +1,6 @@
 # Multi-stage build: Node build → Caddy serve
 # Stage 1: Build
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
