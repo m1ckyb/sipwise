@@ -30,8 +30,14 @@ jobs:
       - name: Lint 🔍
         run: npm run lint
 
-      - name: Run Tests 🧪
+      - name: Run Frontend Tests 🧪
         run: npm test -- --run
+        env:
+          JWT_SECRET: ci-test-secret-must-be-at-least-32-chars
+          ENCRYPTION_SECRET: ci-test-encryption-secret-must-be-at-least-32-chars
+
+      - name: Run Backend Tests 🧪
+        run: cd server && npm ci && npm test -- --run
         env:
           JWT_SECRET: ci-test-secret-must-be-at-least-32-chars
           ENCRYPTION_SECRET: ci-test-encryption-secret-must-be-at-least-32-chars
