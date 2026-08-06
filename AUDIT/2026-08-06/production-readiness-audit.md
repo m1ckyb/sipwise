@@ -63,7 +63,7 @@ Any person with read access to the repository has direct access to the Supabase 
 
 ---
 
-## SEC-002 — Token Blacklist: No Cleanup, Full JWT Stored, Unbounded Growth
+## ~~SEC-002 — Token Blacklist: No Cleanup, Full JWT Stored, Unbounded Growth~~
 
 **File:** `server/src/middleware/auth.ts`, `docker/init.sql`  
 **Severity:** 🔴 Critical  
@@ -98,7 +98,7 @@ Store `SHA-256(token)` instead of raw token. Add cron: `DELETE FROM sipwise_toke
 
 ---
 
-## SEC-003 — Push Subscription Deletion: Authorization Bypass (IDOR)
+## ~~SEC-003 — Push Subscription Deletion: Authorization Bypass (IDOR)~~
 
 **File:** `server/src/routes/push.ts`, line 45-48  
 **Severity:** 🔴 Critical  
@@ -135,7 +135,7 @@ push.delete('/:endpoint', async (c) => {
 
 ---
 
-## SEC-004 — Push Subscription Check: No user_id Scoping (Information Disclosure)
+## ~~SEC-004 — Push Subscription Check: No user_id Scoping (Information Disclosure)~~
 
 **File:** `server/src/routes/push.ts`, line 15-22  
 **Severity:** 🟠 Major  
@@ -199,7 +199,7 @@ if (xRealIp && process.env.TRUST_PROXY === 'true') {
 
 ---
 
-## SEC-007 — CSRF Silently Disabled When ALLOWED_ORIGINS Not Configured
+## ~~SEC-007 — CSRF Silently Disabled When ALLOWED_ORIGINS Not Configured~~
 
 **File:** `server/src/middleware/csrf.ts`, line 13  
 **Severity:** 🟠 Major  
@@ -245,7 +245,7 @@ await logAuditEvent(user.id, 'signup', { email }, c.req.header('x-forwarded-for'
 
 ---
 
-## SEC-010 — No Content-Security-Policy Header
+## ~~SEC-010 — No Content-Security-Policy Header~~
 
 **File:** `server/src/index.ts`, `docker/nginx.conf`  
 **Severity:** 🟠 Major  
@@ -339,7 +339,7 @@ await db.query('UPDATE sipwise_user_data SET drinks = $1 ...', [encryptedDrinks,
 
 ---
 
-## BACK-003 — Inline DB DELETE on Every Rate Limit Check (Write Amplification)
+## ~~BACK-003 — Inline DB DELETE on Every Rate Limit Check (Write Amplification)~~
 
 **File:** `server/src/middleware/rateLimit.ts`, line 33  
 **Severity:** 🟠 Major  
@@ -539,7 +539,7 @@ Extensive `style={}` props require `'unsafe-inline'` in CSP, weakening the XSS d
 
 ---
 
-## DB-002 — Supabase push_subscriptions RLS Allows Unauthenticated Access
+## ~~DB-002 — Supabase push_subscriptions RLS Allows Unauthenticated Access~~
 
 **File:** `supabase/migrations/20260728215000_add_api_keys_user_data_and_push_subscriptions.sql`, line 49-64  
 **Severity:** 🔴 Critical  
@@ -613,7 +613,7 @@ Supabase uses relational `drinks` table + stored procedures. Docker uses encrypt
 
 ---
 
-## INFRA-001 — TLS Disabled: All Traffic is Plaintext HTTP
+## ~~INFRA-001 — TLS Disabled: All Traffic is Plaintext HTTP~~
 
 **File:** `docker/nginx.conf`, line 41-48  
 **Severity:** 🔴 Critical  
@@ -653,7 +653,7 @@ Use `pgbackrest`. Upload to S3-compatible storage immediately. Check integrity a
 
 ---
 
-## INFRA-003 — API Container Has No Node.js Heap Limit
+## ~~INFRA-003 — API Container Has No Node.js Heap Limit~~
 
 **File:** `docker-compose.yml`, line 49-53  
 **Severity:** 🟠 Major
@@ -749,7 +749,7 @@ Invalid email → push services may reject VAPID requests silently.
 
 ---
 
-## QA-001 — `decryptData` Returns null on Failure: Silent Data Loss
+## ~~QA-001 — `decryptData` Returns null on Failure: Silent Data Loss~~
 
 **File:** `server/src/utils/crypto.ts`, line 73-76  
 **Severity:** 🔴 Critical  
@@ -821,7 +821,7 @@ For historical drinks, `timeToZero` may produce a delay of many hours → `setTi
 
 ---
 
-## QA-007 — Zero Server-Side Tests (Auth, Encryption, API, Push)
+## ~~QA-007 — Zero Server-Side Tests (Auth, Encryption, API, Push)~~
 
 **File:** `server/`  
 **Severity:** 🟠 Major  
@@ -831,7 +831,7 @@ No test files exist in `server/`. Auth flows, rate limiting, encryption/decrypti
 
 ---
 
-## QA-008 — `limit` Query Parameter Not Validated (Unbounded Response)
+## ~~QA-008 — `limit` Query Parameter Not Validated (Unbounded Response)~~
 
 **File:** `server/src/routes/api.ts`, line 99-100  
 **Severity:** 🟡 Minor
