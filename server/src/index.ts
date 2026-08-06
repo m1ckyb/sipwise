@@ -3,6 +3,25 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { bodyLimit } from 'hono/body-limit';
 import { logger as honoLogger } from 'hono/logger';
+import { Registry, collectDefaultMetrics, Counter, Histogram } from 'prom-client';
+
+const register = new Registry();
+collectDefaultMetrics({ register });
+
+const httpRequestsTotal = new Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status'],
+  registers: [register],
+});
+
+const httpRequestDurationMs = new Histogram({
+  name: 'http_request_duration_ms',
+  help: 'Duration of HTTP requests in ms',
+  labelNames: ['method', 'route', 'status'],
+  buckets: [10, 50, 100, 500, 1000, 5000],
+  registers: [register],
+});
 
 import authRoutes from './routes/auth.js';
 import dataRoutes from './routes/data.js';
@@ -20,6 +39,21 @@ const app = new Hono();
 
 // Middleware — order matters
 app.use('*', requestId);
+
+app.use('*', async (c, next) => {
+  if (c.req.path === '/api/metrics' || c.req.path === '/api/health') return next();
+  const start = performance.now();
+  await next();
+  const duration = performance.now() - start;
+  const status = c.res.status;
+  // Normalize routes to avoid explosion of metrics cardinality (e.g. /api/push-subscriptions/123 -> /api/push-subscriptions/:id)
+  let route = c.req.path;
+  if (route.startsWith('/api/keys/')) route = '/api/keys/:id';
+  else if (route.startsWith('/api/push-subscriptions/')) route = '/api/push-subscriptions/:endpoint';
+  
+  httpRequestsTotal.inc({ method: c.req.method, route, status });
+  httpRequestDurationMs.observe({ method: c.req.method, route, status }, duration);
+});
 app.use('*', async (c, next) => {
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('X-Frame-Options', 'DENY');
@@ -52,6 +86,11 @@ app.get('/api/health', async (c) => {
     logger.error({ err }, 'Health check failed');
     return c.json({ status: 'degraded', db: 'error', version: '0.2.0-rc3' }, 503);
   }
+});
+
+app.get('/api/metrics', async (c) => {
+  c.header('Content-Type', register.contentType);
+  return c.body(await register.metrics());
 });
 
 // Routes

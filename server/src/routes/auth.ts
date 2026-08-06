@@ -231,4 +231,17 @@ auth.post('/logout', async (c) => {
   return c.json({ success: true });
 });
 
+auth.delete('/me', authMiddleware, async (c) => {
+  const userId = c.get('userId') as string;
+  
+  // Due to ON DELETE CASCADE, this deletes all associated user data,
+  // push subscriptions, and API keys.
+  await db.query('DELETE FROM sipwise_users WHERE id = $1', [userId]);
+
+  deleteCookie(c, 'access_token', { path: '/' });
+  deleteCookie(c, 'refresh_token', { path: '/' });
+
+  return c.json({ success: true, message: 'All user data has been permanently deleted.' });
+});
+
 export default auth;
