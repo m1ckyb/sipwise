@@ -8,6 +8,7 @@
   - `globals` from 17.8.0 to 17.9.0 (#46)
   - `typescript-eslint` from 8.65.0 to 8.66.0 (#50)
 - Bumped project version to 0.2.13.
+- Increased Dependabot open pull request limit to 20 in `.github/dependabot.yml`.
 
 ### Fixed
 
