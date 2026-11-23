@@ -46,11 +46,9 @@ app.use('*', async (c, next) => {
   await next();
   const duration = performance.now() - start;
   const status = c.res.status;
-  // Normalize routes to avoid explosion of metrics cardinality (e.g. /api/push-subscriptions/123 -> /api/push-subscriptions/:id)
-  let route = c.req.path;
-  if (route.startsWith('/api/keys/')) route = '/api/keys/:id';
-  else if (route.startsWith('/api/push-subscriptions/')) route = '/api/push-subscriptions/:endpoint';
-  
+  // Use Hono's matched route pattern and collapse 404s to avoid unbounded Prometheus cardinality
+  const route = status === 404 ? '__unmatched__' : (c.req.routePath || '__unmatched__');
+
   httpRequestsTotal.inc({ method: c.req.method, route, status });
   httpRequestDurationMs.observe({ method: c.req.method, route, status }, duration);
 });

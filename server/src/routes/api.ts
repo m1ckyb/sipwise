@@ -49,7 +49,7 @@ async function authenticateApiKey(c: Request): Promise<{ userId: string; keyId: 
   return { userId: rows[0].user_id, keyId: rows[0].id };
 }
 
-api.get('/bac', async (c) => {
+api.get('/', async (c) => {
   const origin = c.req.header('origin');
   const headers = corsHeaders(origin);
 
@@ -112,7 +112,8 @@ api.get('/bac', async (c) => {
 
   const url = new URL(c.req.url);
   const limitParam = url.searchParams.get('limit');
-  const limit = Math.min(Math.max(parseInt(limitParam || '50', 10), 1), 200);
+  const parsedLimit = parseInt(limitParam || '50', 10);
+  const limit = Math.min(Math.max(Number.isNaN(parsedLimit) ? 50 : parsedLimit, 1), 200);
 
   return c.json({
     current_bac: parseFloat(currentBac.toFixed(4)),
@@ -140,7 +141,7 @@ const AddDrinkSchema = z.object({
   calories: z.number().nonnegative().optional(),
 });
 
-api.post('/bac', async (c) => {
+api.post('/', async (c) => {
   const origin = c.req.header('origin');
   const headers = corsHeaders(origin);
 
@@ -166,7 +167,13 @@ api.post('/bac', async (c) => {
     return c.json({ error: 'Too many requests. Rate limit exceeded (60 req/min).' }, 429, headers);
   }
 
-  const parsed = AddDrinkSchema.safeParse(await c.req.json());
+  let rawBody: unknown;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400, headers);
+  }
+  const parsed = AddDrinkSchema.safeParse(rawBody);
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0].message }, 400, headers);
   }
@@ -205,6 +212,11 @@ api.post('/bac', async (c) => {
   }
   const now = Date.now();
 
+  const normalizedDrinks = drinks.map(d => ({
+    ...d,
+    timestamp: typeof d.timestamp === 'string' ? new Date(d.timestamp).getTime() : d.timestamp,
+  }));
+
   const newDrink: Drink = {
     id: crypto.randomUUID(),
     timestamp: body.timestamp ? new Date(body.timestamp).getTime() : now,
@@ -214,23 +226,23 @@ api.post('/bac', async (c) => {
     calories: body.calories,
   };
 
-  drinks.push(newDrink);
+  normalizedDrinks.push(newDrink);
 
-  const encryptedDrinks = encryptData(drinks, auth.userId);
+  const encryptedDrinks = encryptData(normalizedDrinks, auth.userId);
+  const currentBac = calculateBAC(normalizedDrinks, profile, now);
+  const timeToZero = calculateTimeToZero(normalizedDrinks, profile, now);
+  const isSober = currentBac <= 0;
 
   await db.query(
-    'UPDATE sipwise_user_data SET drinks = $1, updated_at = now() WHERE id = $2',
-    [encryptedDrinks ? JSON.stringify(encryptedDrinks) : null, auth.userId],
+    'UPDATE sipwise_user_data SET drinks = $1, is_sober = $2, updated_at = now() WHERE id = $3',
+    [encryptedDrinks ? JSON.stringify(encryptedDrinks) : null, isSober, auth.userId],
   );
-
-  const currentBac = calculateBAC(drinks, profile, now);
-  const timeToZero = calculateTimeToZero(drinks, profile, now);
 
   const responsePayload = {
     current_bac: parseFloat(currentBac.toFixed(4)),
     time_to_zero_hours: parseFloat(timeToZero.toFixed(2)),
-    is_sober: currentBac <= 0,
-    recent_drinks_24h_count: drinks.filter(d => (now - d.timestamp) < 24 * 3_600_000).length,
+    is_sober: isSober,
+    recent_drinks_24h_count: normalizedDrinks.filter(d => (now - d.timestamp) < 24 * 3_600_000).length,
     last_drink_time: new Date(newDrink.timestamp).toISOString(),
     added_drink: {
       ...newDrink,

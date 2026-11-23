@@ -56,7 +56,7 @@ function DataManagerPanel() {
       let data: { profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] } | null = null;
 
       if (isLocalMode) {
-        data = await apiGet('/api/data');
+        data = await apiGet('/api/v1/data');
       } else {
         const { data: cloudData, error } = await supabase
           .from('user_data')
@@ -143,7 +143,7 @@ function DataManagerPanel() {
       let data: { profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] } | null = null;
 
       if (isLocalMode) {
-        data = await apiGet('/api/data');
+        data = await apiGet('/api/v1/data');
       } else {
         const { data: cloudData, error } = await supabase
           .from('user_data')
@@ -175,6 +175,11 @@ function DataManagerPanel() {
   const handleRestoreFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Backup file is too large (max 5 MB).', 'error');
+      e.target.value = '';
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {

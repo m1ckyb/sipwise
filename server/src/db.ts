@@ -8,6 +8,7 @@ const pool = new pg.Pool({
   max: maxPoolSize,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
+  statement_timeout: 15_000,
 });
 
 pool.on('error', (err) => {
@@ -16,5 +17,6 @@ pool.on('error', (err) => {
 
 export const db = {
   query: (text: string, params?: unknown[]) => pool.query(text, params),
+  connect: () => pool.connect(),
   end: () => pool.end(),
 };

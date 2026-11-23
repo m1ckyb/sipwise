@@ -12,8 +12,10 @@ const CHECK_ALERTS_LOCK_ID = 8675309;
 async function checkAlerts() {
   if (!vapidConfigured) return;
 
+  let client;
   try {
-    const lockResult = await db.query('SELECT pg_try_advisory_lock($1) as acquired', [CHECK_ALERTS_LOCK_ID]);
+    client = await db.connect();
+    const lockResult = await client.query('SELECT pg_try_advisory_lock($1) as acquired', [CHECK_ALERTS_LOCK_ID]);
     if (!lockResult.rows[0]?.acquired) {
       logger.debug('Another instance is currently checking alerts; skipping.');
       return;
@@ -22,16 +24,23 @@ async function checkAlerts() {
     try {
       logger.info('Checking BAC levels for active users');
 
-      const { rows: subscriptions } = await db.query(
+      const { rows: subscriptions } = await client.query(
         'SELECT user_id, subscription, endpoint FROM sipwise_push_subscriptions',
       );
 
       if (subscriptions.length === 0) return;
 
-      const userIds = [...new Set(subscriptions.map(s => s.user_id).filter(Boolean))];
+      const subsByUser = new Map<string, typeof subscriptions>();
+      for (const sub of subscriptions) {
+        if (!sub.user_id) continue;
+        const list = subsByUser.get(sub.user_id) ?? [];
+        list.push(sub);
+        subsByUser.set(sub.user_id, list);
+      }
+      const userIds = [...subsByUser.keys()];
       if (userIds.length === 0) return;
 
-      const { rows: users } = await db.query(
+      const { rows: users } = await client.query(
         'SELECT id, profile, drinks, is_sober FROM sipwise_user_data WHERE id = ANY($1)',
         [userIds],
       );
@@ -43,8 +52,15 @@ async function checkAlerts() {
       for (const user of users) {
         if (!user.profile || !user.drinks) continue;
 
-        const profile = decryptData(user.profile, user.id) as Profile | null;
-        const drinks = (decryptData(user.drinks, user.id) as Drink[]) || [];
+        let profile: Profile | null;
+        let drinks: Drink[];
+        try {
+          profile = decryptData(user.profile, user.id) as Profile | null;
+          drinks = (decryptData(user.drinks, user.id) as Drink[]) || [];
+        } catch (err) {
+          logger.error({ err, userId: user.id }, 'Failed to decrypt user data in checkAlerts; skipping user');
+          continue;
+        }
 
         if (!profile) continue;
 
@@ -53,7 +69,8 @@ async function checkAlerts() {
         const isSoberNow = currentBAC === 0;
 
         if (isSoberNow && !wasSober) {
-          const userSubs = subscriptions.filter(s => s.user_id === user.id);
+          const userSubs = subsByUser.get(user.id) ?? [];
+          let deliveredOrGone = false;
 
           for (const sub of userSubs) {
             try {
@@ -65,35 +82,44 @@ async function checkAlerts() {
                 }),
               );
               alertsSent++;
+              deliveredOrGone = true;
             } catch (err: unknown) {
               logger.error({ err, endpoint: sub.endpoint }, 'Failed to send push notification');
-              if (err && typeof err === 'object' && 'statusCode' in err && (err as Record<string, unknown>).statusCode === 410) {
-                await db.query('DELETE FROM sipwise_push_subscriptions WHERE endpoint = $1', [sub.endpoint]);
+              const statusCode = err && typeof err === 'object' && 'statusCode' in err
+                ? (err as Record<string, unknown>).statusCode
+                : undefined;
+              if (statusCode === 410 || statusCode === 404) {
+                await client.query('DELETE FROM sipwise_push_subscriptions WHERE endpoint = $1', [sub.endpoint]);
+                deliveredOrGone = true;
               }
             }
           }
 
-          soberIds.push(user.id);
+          if (deliveredOrGone || userSubs.length === 0) {
+            soberIds.push(user.id);
+          }
         } else if (!isSoberNow && wasSober) {
           activeIds.push(user.id);
         }
       }
 
       if (soberIds.length > 0) {
-        await db.query('UPDATE sipwise_user_data SET is_sober = true, updated_at = now() WHERE id = ANY($1)', [soberIds]);
+        await client.query('UPDATE sipwise_user_data SET is_sober = true, updated_at = now() WHERE id = ANY($1)', [soberIds]);
       }
       if (activeIds.length > 0) {
-        await db.query('UPDATE sipwise_user_data SET is_sober = false, updated_at = now() WHERE id = ANY($1)', [activeIds]);
+        await client.query('UPDATE sipwise_user_data SET is_sober = false, updated_at = now() WHERE id = ANY($1)', [activeIds]);
       }
 
       if (alertsSent > 0) {
         logger.info({ alertsSent }, 'Sent sober alerts');
       }
     } finally {
-      await db.query('SELECT pg_advisory_unlock($1)', [CHECK_ALERTS_LOCK_ID]).catch(() => {});
+      await client.query('SELECT pg_advisory_unlock($1)', [CHECK_ALERTS_LOCK_ID]).catch(() => {});
     }
   } catch (err) {
     logger.error({ err }, 'Error checking alerts');
+  } finally {
+    client?.release();
   }
 }
 

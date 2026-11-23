@@ -33,9 +33,12 @@ function MetabolismPanel() {
                 value={profile.displayUnit === '‰' ? profile.metabolismRate * 10 : profile.metabolismRate} 
                 onChange={(e) => {
                   const val = Number(e.target.value);
+                  if (!Number.isFinite(val) || val <= 0) return;
+                  const normalized = profile.displayUnit === '‰' ? val / 10 : val;
+                  const clamped = Math.min(Math.max(normalized, 0.005), 0.04);
                   setProfile({
                     ...profile,
-                    metabolismRate: profile.displayUnit === '‰' ? val / 10 : val
+                    metabolismRate: clamped
                   });
                 }} 
               />

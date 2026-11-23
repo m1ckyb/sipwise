@@ -76,17 +76,19 @@ export function decryptData(payload: unknown, userId: string): unknown {
     const key = getUserKey(userId);
     const iv = Buffer.from(p.iv, 'hex');
     const tag = Buffer.from(p.tag, 'hex');
+    if (iv.length !== 12 || tag.length !== 16) {
+      throw new Error('Invalid AES-256-GCM IV or auth tag length');
+    }
     const encryptedText = Buffer.from(p.encryptedData, 'hex');
-    
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
     decipher.setAuthTag(tag);
-    
+
     let decrypted = decipher.update(encryptedText);
     decrypted = Buffer.concat([decrypted, decipher.final()]);
-    
+
     return JSON.parse(decrypted.toString('utf8'));
   } catch (err) {
-    console.error('[SipWise] Decryption failed — throwing DecryptionError:', err);
     throw new DecryptionError(err);
   }
 }

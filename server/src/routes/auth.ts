@@ -29,6 +29,38 @@ const LoginSchema = z.object({
 
 const auth = new Hono<Env>();
 
+function setAuthCookies(c: Parameters<typeof setCookie>[0], accessToken: string, refreshToken: string) {
+  const secure = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging';
+  setCookie(c, 'access_token', accessToken, {
+    httpOnly: true,
+    secure,
+    sameSite: 'strict',
+    maxAge: 15 * 60,
+    path: '/',
+  });
+  setCookie(c, 'refresh_token', refreshToken, {
+    httpOnly: true,
+    secure,
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60,
+    path: '/',
+  });
+}
+
+async function blacklistRawToken(token: string) {
+  try {
+    const decoded = verifyToken(token);
+    const expMs = (decoded.exp ?? Math.floor(Date.now() / 1000) + 900) * 1000;
+    const tokenHash = hashToken(token);
+    await db.query(
+      'INSERT INTO sipwise_token_blacklist (token_hash, expires_at) VALUES ($1, $2) ON CONFLICT (token_hash) DO NOTHING',
+      [tokenHash, new Date(expMs).toISOString()]
+    );
+  } catch {
+    // Token invalid/expired — nothing to blacklist
+  }
+}
+
 auth.post('/signup', async (c) => {
   const ip = getClientIp(c);
   const rateLimitResult = await checkRateLimit(`rate_limit_signup:${ip}`, 10, 60);
@@ -39,7 +71,14 @@ auth.post('/signup', async (c) => {
     return c.json({ error: 'Too many signup attempts. Please try again later.' }, 429);
   }
 
-  const parsed = SignupSchema.safeParse(await c.req.json());
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const parsed = SignupSchema.safeParse(body);
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0].message }, 400);
   }
@@ -67,26 +106,11 @@ auth.post('/signup', async (c) => {
   );
   const user = rows[0];
 
-  await logAuditEvent(user.id, 'signup', { email: user.email }, c.req.header('x-forwarded-for') || undefined);
+  await logAuditEvent(user.id, 'signup', { email: user.email }, ip !== 'anon' ? ip : undefined);
 
   const accessToken = signAccessToken({ sub: user.id, email: user.email });
   const refreshToken = signRefreshToken({ sub: user.id, email: user.email });
-
-  setCookie(c, 'access_token', accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging',
-    sameSite: 'strict',
-    maxAge: 15 * 60, // 15 minutes
-    path: '/',
-  });
-
-  setCookie(c, 'refresh_token', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60, // 7 days
-    path: '/',
-  });
+  setAuthCookies(c, accessToken, refreshToken);
 
   return c.json({ user: { id: user.id, email: user.email } });
 });
@@ -101,7 +125,14 @@ auth.post('/login', async (c) => {
     return c.json({ error: 'Too many login attempts. Please try again later.' }, 429);
   }
 
-  const parsed = LoginSchema.safeParse(await c.req.json());
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const parsed = LoginSchema.safeParse(body);
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0].message }, 400);
   }
@@ -118,26 +149,11 @@ auth.post('/login', async (c) => {
     return c.json({ error: 'Invalid email or password' }, 401);
   }
 
-  await logAuditEvent(user.id, 'login', { email: user.email }, c.req.header('x-forwarded-for') || undefined);
+  await logAuditEvent(user.id, 'login', { email: user.email }, ip !== 'anon' ? ip : undefined);
 
   const accessToken = signAccessToken({ sub: user.id, email: user.email });
   const refreshToken = signRefreshToken({ sub: user.id, email: user.email });
-
-  setCookie(c, 'access_token', accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging',
-    sameSite: 'strict',
-    maxAge: 15 * 60,
-    path: '/',
-  });
-
-  setCookie(c, 'refresh_token', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60,
-    path: '/',
-  });
+  setAuthCookies(c, accessToken, refreshToken);
 
   return c.json({ user: { id: user.id, email: user.email } });
 });
@@ -150,40 +166,25 @@ auth.post('/refresh', async (c) => {
 
   try {
     const payload = verifyToken(refreshToken);
-    const tokenHash = hashToken(refreshToken);
+    if (payload.type && payload.type !== 'refresh') {
+      return c.json({ error: 'Invalid refresh token type' }, 401);
+    }
 
+    const tokenHash = hashToken(refreshToken);
+    const expiresAt = new Date((payload.exp ?? Math.floor(Date.now() / 1000) + 7 * 86400) * 1000);
+
+    // Atomically revoke the refresh token; if already present, reject replay
     const { rows } = await db.query(
-      'SELECT 1 FROM sipwise_token_blacklist WHERE token_hash = $1',
-      [tokenHash]
+      'INSERT INTO sipwise_token_blacklist (token_hash, expires_at) VALUES ($1, $2) ON CONFLICT (token_hash) DO NOTHING RETURNING token_hash',
+      [tokenHash, expiresAt.toISOString()]
     );
-    if (rows.length > 0) {
+    if (rows.length === 0) {
       return c.json({ error: 'Refresh token is revoked' }, 401);
     }
 
-    const expiresAt = new Date((payload as unknown as { exp: number }).exp * 1000);
-    await db.query(
-      'INSERT INTO sipwise_token_blacklist (token_hash, expires_at) VALUES ($1, $2) ON CONFLICT (token_hash) DO NOTHING',
-      [tokenHash, expiresAt.toISOString()]
-    );
-
     const newAccessToken = signAccessToken({ sub: payload.sub, email: payload.email });
     const newRefreshToken = signRefreshToken({ sub: payload.sub, email: payload.email });
-
-    setCookie(c, 'access_token', newAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging',
-      sameSite: 'strict',
-      maxAge: 15 * 60,
-      path: '/',
-    });
-
-    setCookie(c, 'refresh_token', newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60,
-      path: '/',
-    });
+    setAuthCookies(c, newAccessToken, newRefreshToken);
 
     return c.json({ success: true });
   } catch {
@@ -199,7 +200,6 @@ auth.get('/me', authMiddleware, async (c) => {
 });
 
 auth.post('/logout', async (c) => {
-  // Support both cookies and Bearer tokens for blacklisting
   let accessToken = getCookie(c, 'access_token');
   const authHeader = c.req.header('Authorization');
   if (!accessToken && authHeader?.startsWith('Bearer ')) {
@@ -208,22 +208,8 @@ auth.post('/logout', async (c) => {
 
   const refreshToken = getCookie(c, 'refresh_token');
 
-  const blacklistToken = async (token: string) => {
-    try {
-      const decoded = verifyToken(token);
-      const expiresAt = new Date((decoded as unknown as { exp: number }).exp * 1000);
-      const tokenHash = hashToken(token);
-      await db.query(
-        'INSERT INTO sipwise_token_blacklist (token_hash, expires_at) VALUES ($1, $2) ON CONFLICT (token_hash) DO NOTHING',
-        [tokenHash, expiresAt.toISOString()]
-      );
-    } catch {
-      // Decode or query failed — proceed anyway
-    }
-  };
-
-  if (accessToken) await blacklistToken(accessToken);
-  if (refreshToken) await blacklistToken(refreshToken);
+  if (accessToken) await blacklistRawToken(accessToken);
+  if (refreshToken) await blacklistRawToken(refreshToken);
 
   deleteCookie(c, 'access_token', { path: '/' });
   deleteCookie(c, 'refresh_token', { path: '/' });
@@ -233,10 +219,20 @@ auth.post('/logout', async (c) => {
 
 auth.delete('/me', authMiddleware, async (c) => {
   const userId = c.get('userId') as string;
-  
-  // Due to ON DELETE CASCADE, this deletes all associated user data,
-  // push subscriptions, and API keys.
+
+  // Explicitly remove PII-bearing logs/audit rows (which use ON DELETE SET NULL) before deleting user
+  await db.query('DELETE FROM sipwise_audit_trail WHERE user_id = $1', [userId]);
+  await db.query('DELETE FROM sipwise_error_logs WHERE user_id = $1', [userId]);
   await db.query('DELETE FROM sipwise_users WHERE id = $1', [userId]);
+
+  let accessToken = getCookie(c, 'access_token');
+  const authHeader = c.req.header('Authorization');
+  if (!accessToken && authHeader?.startsWith('Bearer ')) {
+    accessToken = authHeader.slice(7);
+  }
+  const refreshToken = getCookie(c, 'refresh_token');
+  if (accessToken) await blacklistRawToken(accessToken);
+  if (refreshToken) await blacklistRawToken(refreshToken);
 
   deleteCookie(c, 'access_token', { path: '/' });
   deleteCookie(c, 'refresh_token', { path: '/' });

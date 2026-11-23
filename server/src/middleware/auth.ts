@@ -17,6 +17,9 @@ const JWT_SECRET: string = process.env.JWT_SECRET;
 export interface JwtPayload {
   sub: string;
   email: string;
+  type?: 'access' | 'refresh';
+  exp?: number;
+  jti?: string;
 }
 
 import { db } from '../db.js';
@@ -27,19 +30,26 @@ export function hashToken(token: string): string {
 }
 
 export function signAccessToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' });
+  return jwt.sign({ sub: payload.sub, email: payload.email, type: 'access' }, JWT_SECRET, {
+    algorithm: 'HS256',
+    expiresIn: '15m',
+    jwtid: crypto.randomUUID(),
+  });
 }
 
 export function signRefreshToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ sub: payload.sub, email: payload.email, type: 'refresh' }, JWT_SECRET, {
+    algorithm: 'HS256',
+    expiresIn: '7d',
+    jwtid: crypto.randomUUID(),
+  });
 }
 
 export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, JWT_SECRET) as JwtPayload;
+  return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as JwtPayload;
 }
 
 export async function authMiddleware(c: Context<Env>, next: Next) {
-  // Allow API key fallback for the /bac endpoint if present
   const authHeader = c.req.header('Authorization');
   let token = getCookie(c, 'access_token');
 
@@ -52,22 +62,27 @@ export async function authMiddleware(c: Context<Env>, next: Next) {
     return c.json({ error: 'Missing or invalid token' }, 401);
   }
 
+  let payload: JwtPayload;
   try {
-    const payload = verifyToken(token);
-    c.set('userId', payload.sub);
-
-    // Check if token hash is blacklisted (only after signature is validated)
-    const tokenHash = hashToken(token);
-    const { rows } = await db.query(
-      'SELECT 1 FROM sipwise_token_blacklist WHERE token_hash = $1',
-      [tokenHash]
-    );
-    if (rows.length > 0) {
-      return c.json({ error: 'Token is revoked' }, 401);
-    }
-
-    await next();
+    payload = verifyToken(token);
   } catch {
     return c.json({ error: 'Invalid or expired token' }, 401);
   }
+
+  if (payload.type && payload.type !== 'access') {
+    return c.json({ error: 'Invalid token type' }, 401);
+  }
+
+  // Check if token hash is blacklisted (only after signature is validated)
+  const tokenHash = hashToken(token);
+  const { rows } = await db.query(
+    'SELECT 1 FROM sipwise_token_blacklist WHERE token_hash = $1',
+    [tokenHash]
+  );
+  if (rows.length > 0) {
+    return c.json({ error: 'Token is revoked' }, 401);
+  }
+
+  c.set('userId', payload.sub);
+  await next();
 }

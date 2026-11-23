@@ -85,11 +85,14 @@ function App() {
           {currentView === 'history' && <History onEditClick={openLogger} />}
           {currentView === 'inventory' && <InventoryManager />}
           {currentView === 'profile' && <ProfileSettings />}
-          <DrinkLogger
-            isOpen={isLoggerOpen}
-            onClose={closeLogger}
-            editDrink={editingDrink}
-          />
+          {isLoggerOpen && (
+            <DrinkLogger
+              key={editingDrink?.id ?? 'new'}
+              isOpen={isLoggerOpen}
+              onClose={closeLogger}
+              editDrink={editingDrink}
+            />
+          )}
         </Suspense>
       </main>
 

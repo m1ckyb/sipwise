@@ -1,5 +1,5 @@
-node_modules
-dist
+**/node_modules
+**/dist
 .git
 .env
 .env.*
@@ -8,3 +8,7 @@ dist
 .idea
 *.log
 .DS_Store
+backups
+AUDIT
+tests
+supabase

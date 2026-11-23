@@ -53,6 +53,7 @@ function DrinkLogger({ isOpen, onClose, editDrink }: DrinkLoggerProps) {
 
   // Helper to format Date for datetime-local input
   const toLocalISO = (ts: number) => {
+    if (!Number.isFinite(ts)) return '';
     const date = new Date(ts);
     const offset = date.getTimezoneOffset();
     const localDate = new Date(date.getTime() - (offset * 60 * 1000));

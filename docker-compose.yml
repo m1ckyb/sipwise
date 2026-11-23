@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: sipwise
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sipwise}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: sipwise
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -29,13 +29,13 @@ services:
       pg:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://sipwise:${POSTGRES_PASSWORD:-sipwise}@pg:5432/sipwise
+      DATABASE_URL: postgres://sipwise:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@pg:5432/sipwise
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (min 32 chars)}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET:?Set ENCRYPTION_SECRET in .env (min 32 chars)}
       NODE_ENV: production
       NODE_OPTIONS: "--max-old-space-size=200"
-      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
-      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       PORT: "3000"
       LOG_LEVEL: ${LOG_LEVEL:-info}
       BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
@@ -50,7 +50,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 384M
           cpus: '0.5'
 
   frontend:
@@ -58,10 +58,12 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-/api/v1}
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     environment:
       # Set to your domain name for automatic TLS via Let's Encrypt.
       # Use localhost (default) for local development — Caddy uses its internal CA.
@@ -73,7 +75,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/healthz"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -90,7 +92,7 @@ services:
       pg:
         condition: service_healthy
     environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD:-sipwise}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
@@ -98,17 +100,28 @@ services:
     volumes:
       - ./backups:/backups
     entrypoint: >
-      sh -c 'apk add --no-cache aws-cli && mkdir -p /backups && while true; do
-        echo "[$(date -Iseconds)] Starting backup...";
-        FILENAME=sipwise_$$(date +%Y%m%d_%H%M%S).sql.gz
-        pg_dump -U sipwise -h pg sipwise | gzip > /backups/$$FILENAME && gunzip -t /backups/$$FILENAME 2>/dev/null || echo "[$(date -Iseconds)] WARNING: Backup integrity check failed!";
-        if [ -n "$$S3_BACKUP_BUCKET" ]; then
-          aws s3 cp /backups/$$FILENAME s3://$$S3_BACKUP_BUCKET/ || echo "[$(date -Iseconds)] WARNING: S3 upload failed!";
-        fi
+      sh -c 'set -o pipefail; if [ -n "$$S3_BACKUP_BUCKET" ]; then apk add --no-cache aws-cli; fi; mkdir -p /backups; while true; do
+        echo "[$$(date -Iseconds)] Starting backup...";
+        FILENAME=sipwise_$$(date +%Y%m%d_%H%M%S).sql.gz;
+        TMPFILE=/backups/.$$FILENAME.tmp;
+        if pg_dump -U sipwise -h pg sipwise | gzip > "$$TMPFILE" && [ -s "$$TMPFILE" ] && gunzip -t "$$TMPFILE" 2>/dev/null; then
+          mv "$$TMPFILE" "/backups/$$FILENAME";
+          if [ -n "$$S3_BACKUP_BUCKET" ]; then
+            aws s3 cp "/backups/$$FILENAME" "s3://$$S3_BACKUP_BUCKET/" --sse AES256 || echo "[$$(date -Iseconds)] WARNING: S3 upload failed!";
+          fi;
+        else
+          rm -f "$$TMPFILE";
+          echo "[$$(date -Iseconds)] ERROR: Backup dump or integrity check failed!";
+        fi;
         find /backups -name "*.sql.gz" -mtime +30 -delete;
-        echo "[$(date -Iseconds)] Backup complete. Next backup in 24h.";
+        echo "[$$(date -Iseconds)] Backup cycle complete. Next backup in 24h.";
         sleep 86400;
       done'
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
 
 volumes:
   pgdata:

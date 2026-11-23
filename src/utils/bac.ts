@@ -142,22 +142,37 @@ export function calculateWidmarkR(profile: Profile): number {
   }
 }
 
+function getSafeMetabolism(profile: Profile): number {
+  return Number.isFinite(profile.metabolismRate) && profile.metabolismRate > 0
+    ? profile.metabolismRate
+    : DEFAULT_METABOLISM_RATE;
+}
+
+function getSafeWeightGrams(profile: Profile): number {
+  const safeWeight = Number.isFinite(profile.weight) && profile.weight > 0 ? profile.weight : 75;
+  return safeWeight * 1000;
+}
+
 /**
  * Calculates current BAC based on Widmark formula with optional physiological absorption lag.
  */
-function calculateBACAtTime(pastDrinks: Drink[], profile: Profile, weightInGrams: number, r: number, currentTime: number): number {
+function calculateBACAtTime(sortedDrinks: Drink[], profile: Profile, weightInGrams: number, r: number, currentTime: number): number {
+  const pastDrinks = sortedDrinks.filter(d => d.timestamp <= currentTime);
+  if (pastDrinks.length === 0) return 0;
+
+  const safeMetabolism = getSafeMetabolism(profile);
   let currentBAC = 0;
   let lastTime = pastDrinks[0].timestamp;
   const isPhysiological = profile.absorptionModel === 'physiological';
 
   for (const drink of pastDrinks) {
     const hoursPassed = (drink.timestamp - lastTime) / (1000 * 60 * 60);
-    currentBAC -= profile.metabolismRate * hoursPassed;
+    currentBAC -= safeMetabolism * hoursPassed;
     if (currentBAC < 0) currentBAC = 0;
 
     let absorptionFactor = 1.0;
     if (isPhysiological) {
-      const minutesSinceDrink = (currentTime - drink.timestamp) / (1000 * 60);
+      const minutesSinceDrink = Math.max(0, (currentTime - drink.timestamp) / (1000 * 60));
       absorptionFactor = 1.0 - Math.exp(-DEFAULT_ABSORPTION_RATE_K * minutesSinceDrink);
     }
 
@@ -169,7 +184,7 @@ function calculateBACAtTime(pastDrinks: Drink[], profile: Profile, weightInGrams
   }
 
   const finalHoursPassed = (currentTime - lastTime) / (1000 * 60 * 60);
-  currentBAC -= profile.metabolismRate * finalHoursPassed;
+  currentBAC -= safeMetabolism * finalHoursPassed;
 
   return Math.max(0, currentBAC);
 }
@@ -180,9 +195,9 @@ export function calculateBAC(drinks: Drink[], profile: Profile, currentTime: num
   const pastDrinks = drinks.filter(d => d.timestamp <= currentTime);
   if (pastDrinks.length === 0) return 0;
 
-  const sortedDrinks = pastDrinks.length === drinks.length ? pastDrinks : [...pastDrinks].sort((a, b) => a.timestamp - b.timestamp);
+  const sortedDrinks = [...pastDrinks].sort((a, b) => a.timestamp - b.timestamp);
 
-  const weightInGrams = profile.weight * 1000;
+  const weightInGrams = getSafeWeightGrams(profile);
   const r = calculateWidmarkR(profile);
 
   return calculateBACAtTime(sortedDrinks, profile, weightInGrams, r, currentTime);
@@ -195,7 +210,7 @@ export function calculateTimeToZero(drinks: Drink[], profile: Profile, currentTi
   const currentBAC = calculateBAC(drinks, profile, currentTime);
   if (currentBAC <= 0) return 0;
 
-  return currentBAC / profile.metabolismRate;
+  return currentBAC / getSafeMetabolism(profile);
 }
 
 /**
@@ -208,18 +223,19 @@ export function generateBACGraphData(drinks: Drink[], profile: Profile, now: num
   if (pastDrinks.length === 0) return [];
 
   const sortedDrinks = [...pastDrinks].sort((a, b) => a.timestamp - b.timestamp);
-  const weightInGrams = profile.weight * 1000;
+  const weightInGrams = getSafeWeightGrams(profile);
+  const safeMetabolism = getSafeMetabolism(profile);
   const r = calculateWidmarkR(profile);
 
   const startTime = sortedDrinks[0].timestamp;
   const lastDrinkTime = sortedDrinks[sortedDrinks.length - 1].timestamp;
 
   const bacAtLastDrink = calculateBACAtTime(sortedDrinks, profile, weightInGrams, r, lastDrinkTime);
-  const timeToZeroFromLast = bacAtLastDrink / profile.metabolismRate;
+  const timeToZeroFromLast = bacAtLastDrink / safeMetabolism;
   let endTime = lastDrinkTime + (timeToZeroFromLast * MS_PER_HOUR);
 
   const bacAtNow = calculateBACAtTime(sortedDrinks, profile, weightInGrams, r, now);
-  const timeToZeroFromNow = bacAtNow / profile.metabolismRate;
+  const timeToZeroFromNow = bacAtNow / safeMetabolism;
   if (now + (timeToZeroFromNow * MS_PER_HOUR) > endTime) {
     endTime = now + (timeToZeroFromNow * MS_PER_HOUR);
   }

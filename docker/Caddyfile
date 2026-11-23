@@ -2,8 +2,17 @@
 # Automatic HTTPS via Let's Encrypt when DOMAIN is set to a real hostname.
 # Uses Caddy's internal CA for local development (localhost / IP).
 
+# Internal-only health check listener (not exposed on host ports)
+:8080 {
+    respond /healthz 200
+}
+
 {$DOMAIN:localhost} {
-    # Proxy all API traffic to the backend
+    # Block public access to Prometheus metrics
+    @metrics path /api/metrics
+    respond @metrics 403
+
+    # Proxy all other API traffic to the backend
     @api path /api/*
     reverse_proxy @api api:3000 {
         header_up X-Real-IP {remote_host}
@@ -20,14 +29,14 @@
     try_files {path} /index.html
     file_server
 
-    # Security headers (CSP is set by the API server for API responses;
-    # these apply to all static responses from Caddy)
+    # Security headers for static/HTML responses
     header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         Permissions-Policy "geolocation=(), camera=(), microphone=()"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none';"
         -Server
     }
 }

@@ -6,11 +6,13 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -91,10 +93,13 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
+      POSTGRES_PASSWORD: ci-test-postgres-password
       JWT_SECRET: ci-test-secret-must-be-at-least-32-chars
       ENCRYPTION_SECRET: ci-test-encryption-secret-must-be-at-least-32-chars
-      ALLOWED_ORIGINS: http://localhost
+      ALLOWED_ORIGINS: https://localhost
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -113,9 +118,25 @@ jobs:
           exit-code: '1'
           severity: CRITICAL,HIGH
 
+      - name: Run Trivy vulnerability scanner (Frontend)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: sipwise-frontend
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+
       - name: Start stack and run health check
         run: |
           docker compose up -d
-          sleep 15
-          curl -f http://localhost/api/health || (docker compose logs frontend && exit 1)
+          for i in $(seq 1 15); do
+            if curl -sfkL https://localhost/api/health | grep -q '"status":"ok"'; then
+              echo "Health check passed"
+              docker compose down
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs
           docker compose down
+          exit 1

@@ -30,7 +30,11 @@ export interface Profile {
   displayUnit: '%' | '‰';
   height: number;
   age: number;
+  absorptionModel?: 'instant' | 'physiological';
 }
+
+const DEFAULT_ABSORPTION_RATE_K = 0.15;
+const DEFAULT_METABOLISM_RATE = 0.015;
 
 export function estimateCalories(volume: number, abv: number): number {
   const alcoholGrams = volume * (abv / 100) * ETHANOL_DENSITY;
@@ -41,7 +45,10 @@ export function estimateCalories(volume: number, abv: number): number {
 }
 
 export function calculateWidmarkR(profile: Profile): number {
-  const { weight, height, age, gender } = profile;
+  const weight = Number.isFinite(profile.weight) && profile.weight > 0 ? profile.weight : 70;
+  const height = Number.isFinite(profile.height) && profile.height > 0 ? profile.height : 170;
+  const age = Number.isFinite(profile.age) && profile.age > 0 ? profile.age : 30;
+  const { gender } = profile;
   if (gender === 'male') {
     const tbw = WATSON_COEFF_MALE_TBW.intercept
       + WATSON_COEFF_MALE_TBW.age * age
@@ -61,7 +68,11 @@ export function calculateBAC(drinks: Drink[], profile: Profile, currentTime: num
   if (pastDrinks.length === 0) return 0;
 
   const sortedDrinks = [...pastDrinks].sort((a, b) => a.timestamp - b.timestamp);
-  const weightInGrams = profile.weight * 1000;
+  const safeWeight = Number.isFinite(profile.weight) && profile.weight > 0 ? profile.weight : 70;
+  const safeMetabolism = Number.isFinite(profile.metabolismRate) && profile.metabolismRate > 0
+    ? profile.metabolismRate
+    : DEFAULT_METABOLISM_RATE;
+  const weightInGrams = safeWeight * 1000;
   const r = calculateWidmarkR(profile);
 
   let currentBAC = 0;
@@ -69,21 +80,30 @@ export function calculateBAC(drinks: Drink[], profile: Profile, currentTime: num
 
   for (const drink of sortedDrinks) {
     const hoursPassed = (drink.timestamp - lastTime) / 3_600_000;
-    currentBAC -= profile.metabolismRate * hoursPassed;
+    currentBAC -= safeMetabolism * hoursPassed;
     if (currentBAC < 0) currentBAC = 0;
 
     const alcoholGrams = drink.volume * (drink.abv / 100) * ETHANOL_DENSITY;
-    currentBAC += (alcoholGrams / (weightInGrams * r)) * 100;
+    let absorptionFactor = 1.0;
+    if (profile.absorptionModel === 'physiological') {
+      const minutesSinceDrink = Math.max(0, (currentTime - drink.timestamp) / 60_000);
+      absorptionFactor = 1 - Math.exp(-DEFAULT_ABSORPTION_RATE_K * minutesSinceDrink);
+    }
+
+    currentBAC += ((alcoholGrams * absorptionFactor) / (weightInGrams * r)) * 100;
     lastTime = drink.timestamp;
   }
 
   const finalHoursPassed = (currentTime - lastTime) / 3_600_000;
-  currentBAC -= profile.metabolismRate * finalHoursPassed;
+  currentBAC -= safeMetabolism * finalHoursPassed;
   return Math.max(0, currentBAC);
 }
 
 export function calculateTimeToZero(drinks: Drink[], profile: Profile, currentTime: number = Date.now()): number {
   const currentBAC = calculateBAC(drinks, profile, currentTime);
   if (currentBAC <= 0) return 0;
-  return currentBAC / profile.metabolismRate;
+  const safeMetabolism = Number.isFinite(profile.metabolismRate) && profile.metabolismRate > 0
+    ? profile.metabolismRate
+    : DEFAULT_METABOLISM_RATE;
+  return currentBAC / safeMetabolism;
 }

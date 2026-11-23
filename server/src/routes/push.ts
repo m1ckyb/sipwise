@@ -6,7 +6,14 @@ import type { Env } from '../types.js';
 
 const PushSubscriptionSchema = z.object({
   endpoint: z.string().url('Invalid push endpoint URL'),
-  subscription: z.any(),
+  subscription: z.object({
+    endpoint: z.string().url(),
+    expirationTime: z.number().nullable().optional(),
+    keys: z.object({
+      p256dh: z.string().min(1),
+      auth: z.string().min(1),
+    }),
+  }),
 });
 
 const push = new Hono<Env>();
@@ -24,7 +31,13 @@ push.get('/check/:endpoint', async (c) => {
 
 push.post('/', async (c) => {
   const userId = c.get('userId') as string;
-  const parsed = PushSubscriptionSchema.safeParse(await c.req.json());
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+  const parsed = PushSubscriptionSchema.safeParse(body);
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0].message }, 400);
   }
@@ -34,9 +47,9 @@ push.post('/', async (c) => {
     `INSERT INTO sipwise_push_subscriptions (endpoint, user_id, subscription, updated_at)
      VALUES ($1, $2, $3, now())
      ON CONFLICT (endpoint) DO UPDATE SET
-       user_id = EXCLUDED.user_id,
        subscription = EXCLUDED.subscription,
-       updated_at = now()`,
+       updated_at = now()
+     WHERE sipwise_push_subscriptions.user_id = EXCLUDED.user_id`,
     [endpoint, userId, JSON.stringify(subscription)],
   );
 
@@ -45,7 +58,7 @@ push.post('/', async (c) => {
 
 push.delete('/:endpoint', async (c) => {
   const userId = c.get('userId') as string;
-  const endpoint = decodeURIComponent(c.req.param('endpoint'));
+  const endpoint = c.req.param('endpoint');
   await db.query(
     'DELETE FROM sipwise_push_subscriptions WHERE endpoint = $1 AND user_id = $2',
     [endpoint, userId],

@@ -19,7 +19,7 @@ function AuthPanel() {
     setAuthError(null);
     try {
       if (isLocalMode) {
-        const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/signup';
+        const endpoint = authMode === 'login' ? '/api/v1/auth/login' : '/api/v1/auth/signup';
         await apiPost(endpoint, { email, password });
         // Reload user from /me so AppContext picks up the new user
         window.location.reload();

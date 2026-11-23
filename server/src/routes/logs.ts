@@ -13,10 +13,11 @@ const LogSchema = z.object({
 
 const logs = new Hono<Env>();
 
-function sanitizeObject(obj: unknown): unknown {
+function sanitizeObject(obj: unknown, depth = 0): unknown {
+  if (depth > 8) return '[TRUNCATED]';
   if (!obj || typeof obj !== 'object') return obj;
   if (Array.isArray(obj)) {
-    return obj.map(sanitizeObject);
+    return obj.slice(0, 50).map(item => sanitizeObject(item, depth + 1));
   }
   const sanitized: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
@@ -32,7 +33,7 @@ function sanitizeObject(obj: unknown): unknown {
     ) {
       sanitized[key] = '[REDACTED]';
     } else if (typeof value === 'object' && value !== null) {
-      sanitized[key] = sanitizeObject(value);
+      sanitized[key] = sanitizeObject(value, depth + 1);
     } else {
       sanitized[key] = value;
     }
@@ -43,7 +44,8 @@ function sanitizeObject(obj: unknown): unknown {
 function sanitizeString(str: string): string {
   return str
     .replace(/bearer\s+[a-zA-Z0-9\-._~+/]+=*/gi, 'Bearer [REDACTED]')
-    .replace(/(password|token|key|secret|auth|credential|email)["'\s]*[:=]["'\s]*([a-zA-Z0-9\-._~+/]+)/gi, '$1="[REDACTED]"');
+    .replace(/(password|token|key|secret|auth|credential|email)["'\s]*[:=]["'\s]*([a-zA-Z0-9\-._~+/]+)/gi, '$1="[REDACTED]"')
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[REDACTED_EMAIL]');
 }
 
 logs.post('/', async (c) => {
@@ -69,7 +71,14 @@ logs.post('/', async (c) => {
     }
   }
 
-  const parsed = LogSchema.safeParse(await c.req.json());
+  let rawBody: unknown;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const parsed = LogSchema.safeParse(rawBody);
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0].message }, 400);
   }

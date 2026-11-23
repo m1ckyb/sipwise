@@ -30,7 +30,17 @@ async function request<T = unknown>(
       signal: controller.signal,
     });
 
-    const data = await res.json();
+    let data: Record<string, unknown> | null = null;
+    if (res.status !== 204) {
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
+      }
+    }
 
     if (!res.ok) {
       // Retry on 5xx errors (transient) for non-body requests
@@ -39,7 +49,8 @@ async function request<T = unknown>(
         await new Promise(r => setTimeout(r, delay));
         return request<T>(method, path, body, attempt + 1);
       }
-      throw new Error(data?.error || `Request failed (${res.status})`);
+      const errMsg = typeof data?.error === 'string' ? data.error : `Request failed (${res.status})`;
+      throw new Error(errMsg);
     }
 
     return data as T;

@@ -6,10 +6,11 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 ARG VITE_API_URL=""
+ARG VITE_VAPID_PUBLIC_KEY=""
 RUN npm run build
 
 # Stage 2: Serve with Caddy (automatic TLS via Let's Encrypt)
-FROM caddy:alpine
+FROM caddy:2-alpine
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /usr/share/caddy
 EXPOSE 80

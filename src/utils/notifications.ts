@@ -92,7 +92,7 @@ export async function unsubscribeUserFromPush(): Promise<boolean> {
 export async function syncSubscriptionToSupabase(subscription: PushSubscription): Promise<boolean> {
   try {
     if (isLocalMode) {
-      await apiPost('/api/push-subscriptions', { endpoint: subscription.endpoint, subscription: subscription.toJSON() });
+      await apiPost('/api/v1/push-subscriptions', { endpoint: subscription.endpoint, subscription: subscription.toJSON() });
       return true;
     }
 
@@ -128,7 +128,7 @@ export async function syncSubscriptionToSupabase(subscription: PushSubscription)
 export async function deleteSubscriptionFromSupabase(endpoint: string): Promise<boolean> {
   try {
     if (isLocalMode) {
-      await apiDelete(`/api/push-subscriptions/${encodeURIComponent(endpoint)}`);
+      await apiDelete(`/api/v1/push-subscriptions/${encodeURIComponent(endpoint)}`);
       return true;
     }
 
@@ -171,7 +171,9 @@ export async function triggerLocalTestNotification(delaySeconds: number = 0): Pr
   };
 
   if (delaySeconds > 0) {
-    setTimeout(trigger, delaySeconds * 1000);
+    setTimeout(() => {
+      trigger().catch((err) => console.error('Failed to trigger test notification:', err));
+    }, delaySeconds * 1000);
   } else {
     await trigger();
   }

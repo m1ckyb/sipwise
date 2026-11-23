@@ -41,7 +41,7 @@ function PushNotificationsPanel() {
               let found = false;
               if (isLocalMode) {
                 try {
-                  const data = await apiGet<{ synced: boolean }>(`/api/push-subscriptions/check/${encodeURIComponent(sub.endpoint)}`);
+                  const data = await apiGet<{ synced: boolean }>(`/api/v1/push-subscriptions/check/${encodeURIComponent(sub.endpoint)}`);
                   found = data.synced;
                 } catch {
                   found = false;

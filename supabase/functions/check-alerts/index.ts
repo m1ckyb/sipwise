@@ -15,21 +15,37 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   );
 }
 
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) {
+    diff |= ab[i] ^ bb[i];
+  }
+  return diff === 0;
+}
+
 serve(async (req: Request) => {
-  // Prevent unauthorized access: check Cron Secret, Service Role, or Anon Key authorization
+  // Prevent unauthorized access: require CRON_SECRET or SUPABASE_SERVICE_ROLE_KEY (fail closed)
   const cronSecret = Deno.env.get('CRON_SECRET');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+
+  if (!cronSecret && !serviceRoleKey) {
+    return new Response(JSON.stringify({ error: "Server misconfigured: missing CRON_SECRET" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
 
   const authHeader = req.headers.get('authorization') || '';
   const customCronHeader = req.headers.get('x-cron-secret') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
   const isAuthorized =
-    (cronSecret && (customCronHeader === cronSecret || token === cronSecret)) ||
-    (serviceRoleKey && token === serviceRoleKey) ||
-    (anonKey && token === anonKey) ||
-    (!cronSecret && !serviceRoleKey);
+    Boolean(cronSecret && ((customCronHeader && timingSafeEqualStr(customCronHeader, cronSecret)) || (token && timingSafeEqualStr(token, cronSecret)))) ||
+    Boolean(serviceRoleKey && token && timingSafeEqualStr(token, serviceRoleKey));
 
   if (!isAuthorized) {
     return new Response(JSON.stringify({ error: "Unauthorized access" }), {
@@ -60,8 +76,14 @@ serve(async (req: Request) => {
 
   console.log(`Found ${subscriptionsData.length} push subscriptions.`);
 
-  // Get unique user IDs
-  const userIds = [...new Set(subscriptionsData.map(sub => sub.user_id).filter(Boolean))];
+  const subsByUser = new Map<string, typeof subscriptionsData>();
+  for (const sub of subscriptionsData) {
+    if (!sub.user_id) continue;
+    const list = subsByUser.get(sub.user_id) ?? [];
+    list.push(sub);
+    subsByUser.set(sub.user_id, list);
+  }
+  const userIds = [...subsByUser.keys()];
   console.log(`Unique users with subscriptions: ${userIds.length}`);
 
   if (userIds.length === 0) {
@@ -84,11 +106,7 @@ serve(async (req: Request) => {
   let alertsSent = 0;
 
   for (const user of usersData) {
-    console.log(`Processing user: ${user.id}`);
-    if (!user.profile || !user.drinks) {
-      console.log(`Skipping user ${user.id}: Missing profile or drinks.`);
-      continue;
-    }
+    if (!user.profile || !user.drinks) continue;
 
     // Normalize drink timestamps (convert string ISO dates to milliseconds timestamp)
     const rawDrinks = Array.isArray(user.drinks) ? user.drinks : [];
@@ -101,19 +119,17 @@ serve(async (req: Request) => {
     const wasSober = user.is_sober ?? true;
     const isSoberNow = currentBAC === 0;
 
-    const mostRecentDrinkTime = normalizedDrinks.length > 0
-      ? Math.max(...normalizedDrinks.map((d: { timestamp: number }) => d.timestamp))
-      : 0;
+    let mostRecentDrinkTime = 0;
+    for (const d of normalizedDrinks) {
+      if (d.timestamp > mostRecentDrinkTime) mostRecentDrinkTime = d.timestamp;
+    }
     const hasRecentDrink = (Date.now() - mostRecentDrinkTime) < 24 * 3600000;
-
-    console.log(`User ${user.id} -> currentBAC: ${currentBAC}, wasSober: ${wasSober}, isSoberNow: ${isSoberNow}, hasRecentDrink: ${hasRecentDrink}`);
 
     // State transition: user became sober (or was drinking within 24h but is_sober wasn't flipped to false yet)
     if (isSoberNow && (!wasSober || (hasRecentDrink && user.is_sober === null))) {
-      console.log(`User ${user.id} just became sober! Sending alert...`);
-      
-      const userSubs = subscriptionsData.filter(sub => sub.user_id === user.id);
-      
+      const userSubs = subsByUser.get(user.id) ?? [];
+      let deliveredOrGone = false;
+
       for (const sub of userSubs) {
         try {
           await webpush.sendNotification(
@@ -124,29 +140,27 @@ serve(async (req: Request) => {
             })
           );
           alertsSent++;
-          console.log(`Successfully sent push to endpoint: ${sub.endpoint}`);
+          deliveredOrGone = true;
         } catch (err: unknown) {
-          console.error(`Failed to send notification to ${sub.endpoint}:`, err);
-          if (err && typeof err === 'object' && 'statusCode' in err && (err as Record<string, unknown>).statusCode === 410) {
-            console.log(`Subscription expired (410). Deleting from DB.`);
+          console.error(`Failed to send notification:`, err);
+          const statusCode = err && typeof err === 'object' && 'statusCode' in err
+            ? (err as Record<string, unknown>).statusCode
+            : undefined;
+          if (statusCode === 410 || statusCode === 404) {
             await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+            deliveredOrGone = true;
           }
         }
       }
 
-      // Update state to sober
-      await supabase.from('user_data').update({ is_sober: true }).eq('id', user.id);
-    } 
+      if (deliveredOrGone || userSubs.length === 0) {
+        await supabase.from('user_data').update({ is_sober: true, updated_at: new Date().toISOString() }).eq('id', user.id);
+      }
+    }
     // State transition: user started drinking
     else if (!isSoberNow && wasSober) {
-      console.log(`User ${user.id} started drinking. Updating state to not sober.`);
-      await supabase.from('user_data').update({ is_sober: false }).eq('id', user.id);
-    } else {
-      console.log(`User ${user.id} unchanged. (isSoberNow: ${isSoberNow}, wasSober: ${wasSober})`);
+      await supabase.from('user_data').update({ is_sober: false, updated_at: new Date().toISOString() }).eq('id', user.id);
     }
-    
-    // Optional: BAC Reminders (e.g., "Don't forget to log your drinks! Your last drink was 2 hours ago.")
-    // Can be added here based on logic.
   }
 
   return new Response(JSON.stringify({ 

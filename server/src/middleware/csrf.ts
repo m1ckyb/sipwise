@@ -10,9 +10,14 @@ export const csrfProtection: MiddlewareHandler = async (c, next) => {
     return next();
   }
 
+  // Non-browser API-key clients calling /api/v1/bac do not use cookie auth or send Origin/Referer
+  if (c.req.path.startsWith('/api/v1/bac') && c.req.header('x-api-key')) {
+    return next();
+  }
+
   if (allowedOrigins.length === 0) {
-    // Fail closed in production — misconfigured ALLOWED_ORIGINS must not silently disable CSRF
-    if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
+    // Fail closed unless explicitly running in development/test
+    if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
       return c.json({ error: 'CSRF validation failed: server is misconfigured (ALLOWED_ORIGINS not set)' }, 403);
     }
     return next();

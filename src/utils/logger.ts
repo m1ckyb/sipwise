@@ -26,19 +26,19 @@ class Logger {
       // Asynchronously log error to backend APM table
       try {
         if (isLocalMode) {
-          apiPost('/api/logs', {
+          void apiPost('/api/v1/logs', {
             error_message: message,
             stack_trace: stackTrace || (context?.stack as string) || null,
             source: 'frontend',
             context: context || null,
-          }).then();
+          }).catch(() => {});
         } else {
-          supabase.from('error_logs').insert({
+          void Promise.resolve(supabase.from('error_logs').insert({
             error_message: message,
             stack_trace: stackTrace || (context?.stack as string) || null,
             source: 'frontend',
             context: context || null
-          }).then();
+          })).catch(() => {});
         }
       } catch {
         // Ignore logging failures to prevent cascading errors

@@ -96,71 +96,63 @@ export interface Session {
 }
 
 export function calculateWidmarkR(profile: Profile): number {
-  const { weight, height, age, gender } = profile;
+  const weight = Number.isFinite(profile.weight) && profile.weight > 0 ? profile.weight : 70;
+  const height = Number.isFinite(profile.height) && profile.height > 0 ? profile.height : 170;
+  const age = Number.isFinite(profile.age) && profile.age > 0 ? profile.age : 30;
+  const { gender } = profile;
 
   if (gender === 'male') {
-    // Watson Formula (Male)
-    const tbw = WATSON_COEFF_MALE_TBW.intercept + 
-                (WATSON_COEFF_MALE_TBW.age * age) + 
-                (WATSON_COEFF_MALE_TBW.height * height) + 
+    const tbw = WATSON_COEFF_MALE_TBW.intercept +
+                (WATSON_COEFF_MALE_TBW.age * age) +
+                (WATSON_COEFF_MALE_TBW.height * height) +
                 (WATSON_COEFF_MALE_TBW.weight * weight);
     const r = tbw / (weight * 0.8);
-    // Sanity check: r for men is usually between 0.60 and 0.80
     return Math.min(Math.max(r, R_MIN_MALE), R_MAX_MALE);
   } else {
-    // Watson Formula (Female)
-    const tbw = WATSON_COEFF_FEMALE_TBW.intercept + 
-                (WATSON_COEFF_FEMALE_TBW.height * height) + 
+    const tbw = WATSON_COEFF_FEMALE_TBW.intercept +
+                (WATSON_COEFF_FEMALE_TBW.height * height) +
                 (WATSON_COEFF_FEMALE_TBW.weight * weight);
     const r = tbw / (weight * 0.8);
-    // Sanity check: r for women is usually between 0.45 and 0.70
     return Math.min(Math.max(r, R_MIN_FEMALE), R_MAX_FEMALE);
   }
 }
 
-/**
- * Calculates current BAC based on Widmark formula.
- * BAC = (Alcohol in grams / (Weight in grams * r)) * 100 - (Metabolism * hours)
- * 
- * Note: This implementation assumes instant absorption for simplicity, 
- * which is common for basic BAC trackers.
- */
 export function calculateBAC(drinks: Drink[], profile: Profile, currentTime: number = Date.now()): number {
   if (drinks.length === 0) return 0;
 
-  // Filter drinks that haven't happened yet
   const pastDrinks = drinks.filter(d => d.timestamp <= currentTime);
   if (pastDrinks.length === 0) return 0;
 
-  // Sort drinks chronologically
   const sortedDrinks = [...pastDrinks].sort((a, b) => a.timestamp - b.timestamp);
 
-  const weightInGrams = profile.weight * 1000;
+  const safeWeight = Number.isFinite(profile.weight) && profile.weight > 0 ? profile.weight : 70;
+  const safeMetabolism = Number.isFinite(profile.metabolismRate) && profile.metabolismRate > 0 ? profile.metabolismRate : 0.015;
+  const weightInGrams = safeWeight * 1000;
   const r = calculateWidmarkR(profile);
+  const absorptionModel = (profile as unknown as { absorptionModel?: string }).absorptionModel;
 
   let currentBAC = 0;
   let lastTime = sortedDrinks[0].timestamp;
 
   for (const drink of sortedDrinks) {
-    // 1. Calculate hours since the last event (drink)
     const hoursPassed = (drink.timestamp - lastTime) / (1000 * 60 * 60);
-    
-    // 2. Subtract metabolized BAC since the last event
-    currentBAC -= profile.metabolismRate * hoursPassed;
+    currentBAC -= safeMetabolism * hoursPassed;
     if (currentBAC < 0) currentBAC = 0;
 
-    // 3. Add the contribution of the new drink
     const alcoholGrams = drink.volume * (drink.abv / 100) * ETHANOL_DENSITY;
-    const addedBAC = (alcoholGrams / (weightInGrams * r)) * 100;
+    let absorptionFactor = 1.0;
+    if (absorptionModel === 'physiological') {
+      const minutesSinceDrink = Math.max(0, (currentTime - drink.timestamp) / 60_000);
+      absorptionFactor = 1 - Math.exp(-0.15 * minutesSinceDrink);
+    }
+    const addedBAC = ((alcoholGrams * absorptionFactor) / (weightInGrams * r)) * 100;
     currentBAC += addedBAC;
 
-    // 4. Update the tracker time
     lastTime = drink.timestamp;
   }
 
-  // 5. Final metabolism from the last drink to the current time
   const finalHoursPassed = (currentTime - lastTime) / (1000 * 60 * 60);
-  currentBAC -= profile.metabolismRate * finalHoursPassed;
+  currentBAC -= safeMetabolism * finalHoursPassed;
 
   return Math.max(0, currentBAC);
 }
@@ -171,8 +163,8 @@ export function calculateBAC(drinks: Drink[], profile: Profile, currentTime: num
 export function calculateTimeToZero(drinks: Drink[], profile: Profile, currentTime: number = Date.now()): number {
   const currentBAC = calculateBAC(drinks, profile, currentTime);
   if (currentBAC <= 0) return 0;
-
-  return currentBAC / profile.metabolismRate;
+  const safeMetabolism = Number.isFinite(profile.metabolismRate) && profile.metabolismRate > 0 ? profile.metabolismRate : 0.015;
+  return currentBAC / safeMetabolism;
 }
 
 /**

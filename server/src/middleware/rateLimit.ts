@@ -3,11 +3,13 @@ import { db } from '../db.js';
 import { getConnInfo } from '@hono/node-server/conninfo';
 
 export function getClientIp(c: Context): string {
-  const xRealIp = c.req.header('x-real-ip');
-  if (xRealIp && process.env.TRUST_PROXY === 'true') {
-    return xRealIp;
+  if (process.env.TRUST_PROXY === 'true') {
+    const xRealIp = c.req.header('x-real-ip');
+    if (xRealIp) return xRealIp;
+    const xff = c.req.header('x-forwarded-for')?.split(',')[0].trim();
+    if (xff) return xff;
   }
-  
+
   try {
     const connInfo = getConnInfo(c);
     if (connInfo.remote.address) {
@@ -16,8 +18,8 @@ export function getClientIp(c: Context): string {
   } catch {
     /* ignore */
   }
-  
-  return xRealIp || c.req.header('x-forwarded-for')?.split(',')[0].trim() || 'anon';
+
+  return 'anon';
 }
 
 export async function checkRateLimit(
@@ -26,28 +28,29 @@ export async function checkRateLimit(
   windowSeconds = 60,
 ): Promise<{ allowed: boolean; count: number; max: number; remaining: number; resetAt: number }> {
   const now = new Date();
-  const windowStartLimit = new Date(now.getTime() - windowSeconds * 1000);
+  const nowIso = now.toISOString();
+  const windowStartLimit = new Date(now.getTime() - windowSeconds * 1000).toISOString();
 
   try {
-    // Perform atomic increment/upsert query
+    // Perform atomic increment/upsert query ($2 = now, $3 = window cutoff)
     const { rows } = await db.query(
       `INSERT INTO sipwise_rate_limits (key, request_count, window_start)
        VALUES ($1, 1, $2)
        ON CONFLICT (key) DO UPDATE SET
-         request_count = CASE 
-           WHEN sipwise_rate_limits.window_start < $2 THEN 1
+         request_count = CASE
+           WHEN sipwise_rate_limits.window_start < $3 THEN 1
            ELSE sipwise_rate_limits.request_count + 1
          END,
          window_start = CASE
-           WHEN sipwise_rate_limits.window_start < $2 THEN $2
+           WHEN sipwise_rate_limits.window_start < $3 THEN $2
            ELSE sipwise_rate_limits.window_start
          END
        RETURNING request_count, window_start`,
-      [key, windowStartLimit.toISOString()],
+      [key, nowIso, windowStartLimit],
     );
 
     const count = rows[0]?.request_count || 1;
-    const windowStart = new Date(rows[0]?.window_start || windowStartLimit.toISOString());
+    const windowStart = new Date(rows[0]?.window_start || nowIso);
     const resetAt = windowStart.getTime() + windowSeconds * 1000;
     const remaining = Math.max(0, maxRequests - count);
 

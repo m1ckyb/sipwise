@@ -40,7 +40,7 @@ function ProfileSettings() {
 
       <div className="version-info" style={{ textAlign: 'center', marginTop: 'var(--spacing-lg)', opacity: 0.5, fontSize: '0.8rem' }}>
         SipWise v{pkg.version} <br />
-        <a href="/tos.html" style={{ color: 'inherit' }} target="_blank">Terms of Service</a> | <a href="/privacy.html" style={{ color: 'inherit' }} target="_blank">Privacy Policy</a>
+        <a href="/tos.html" style={{ color: 'inherit' }} target="_blank" rel="noopener noreferrer">Terms of Service</a> | <a href="/privacy.html" style={{ color: 'inherit' }} target="_blank" rel="noopener noreferrer">Privacy Policy</a>
       </div>
     </div>
   );

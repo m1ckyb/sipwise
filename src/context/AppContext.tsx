@@ -3,7 +3,7 @@ import { calculateBAC, calculateTimeToZero, type Drink, type Profile, type Inven
 import { supabase } from '../utils/supabase';
 import type { User } from '@supabase/supabase-js';
 import { isLocalMode } from '../utils/mode';
-import { apiGet, apiPut, clearToken } from '../utils/api';
+import { apiGet, apiPost, apiPut, clearToken } from '../utils/api';
 
 interface AppContextType {
   profile: Profile;
@@ -231,7 +231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setIsSyncing(true);
     try {
       if (isLocalMode) {
-        await apiPut('/api/data', {
+        await apiPut('/api/v1/data', {
           profile: profileRef.current,
           drinks: drinksRef.current,
           presets: presetsRef.current,
@@ -278,7 +278,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let data: { profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] } | null = null;
 
       if (isLocalMode) {
-        const resp = await apiGet<{ profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] }>('/api/data');
+        const resp = await apiGet<{ profile?: Profile; drinks?: Drink[]; presets?: Omit<Drink, 'id' | 'timestamp'>[] }>('/api/v1/data');
         data = resp;
       } else {
         const { data: cloudData, error } = await supabase
@@ -306,24 +306,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
           changed = true;
         }
 
+        const isInitial = !initialPullDone.current;
         const validCloudDrinks = Array.isArray(data.drinks) ? data.drinks : null;
-        // On initial pull (when initialPullDone is false), merge local & cloud so pre-login offline drinks aren't lost.
+        // On initial pull, merge local & cloud so pre-login offline drinks aren't lost.
         // On subsequent pulls, cloud state is authoritative.
-        const mergedDrinks = !initialPullDone.current && validCloudDrinks
+        const mergedDrinks = isInitial && validCloudDrinks
           ? mergeDrinkArrays(drinksRef.current, validCloudDrinks)
           : (validCloudDrinks ?? drinksRef.current);
 
         if (JSON.stringify(mergedDrinks) !== JSON.stringify(drinksRef.current)) {
+          drinksRef.current = mergedDrinks;
           setDrinks(mergedDrinks);
           changed = true;
         }
 
         const validCloudPresets = Array.isArray(data.presets) ? data.presets : null;
-        const mergedPresets = !initialPullDone.current && validCloudPresets
+        const mergedPresets = isInitial && validCloudPresets
           ? mergePresetArrays(presetsRef.current, validCloudPresets)
           : (validCloudPresets ?? presetsRef.current);
 
         if (JSON.stringify(mergedPresets) !== JSON.stringify(presetsRef.current)) {
+          presetsRef.current = mergedPresets;
           setPresets(mergedPresets);
           changed = true;
         }
@@ -332,8 +335,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           skipNextPushRef.current = true;
         }
 
+        initialPullDone.current = true;
+
         // If local state contained drinks/presets not yet saved to cloud during initial pull, push merged result
-        if (!initialPullDone.current && data.drinks && mergedDrinks.length > data.drinks.length) {
+        if (isInitial && data.drinks && mergedDrinks.length > data.drinks.length) {
           await pushToCloud();
         }
       } else {
@@ -381,12 +386,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           };
         } else {
           let currentRemaining = item.remainingVolume + volume;
-          
-          while (currentRemaining > activeVolume) {
-            bottles.push(activeVolume);
-            currentRemaining -= activeVolume;
+
+          if (activeVolume > 0) {
+            while (currentRemaining > activeVolume) {
+              bottles.push(activeVolume);
+              currentRemaining -= activeVolume;
+            }
           }
-          
+
           return {
             ...item,
             quantity: bottles.length,
@@ -409,13 +416,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeDrink = useCallback((id: string) => {
-    setDrinks(prev => {
-      const drinkToRemove = prev.find(d => d.id === id);
-      if (drinkToRemove && drinkToRemove.name && profileRef.current.appMode === 'inventory') {
-        recreditToInventory(drinkToRemove.name, drinkToRemove.volume);
-      }
-      return prev.filter(d => d.id !== id);
-    });
+    const drinkToRemove = drinksRef.current.find(d => d.id === id);
+    setDrinks(prev => prev.filter(d => d.id !== id));
+    if (drinkToRemove && drinkToRemove.name && profileRef.current.appMode === 'inventory') {
+      recreditToInventory(drinkToRemove.name, drinkToRemove.volume);
+    }
     showToast('Drink deleted', 'info');
   }, [showToast, recreditToInventory]);
   const updateDrink = useCallback((id: string, updates: Partial<Drink>) => {
@@ -429,12 +434,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPresets(prev => prev.map(p => p.name === name ? { ...p, ...updates } : p));
   }, []);
   const addInventoryItem = useCallback((item: Omit<InventoryItem, 'id' | 'remainingVolume'>) => {
+    const unopenedCount = item.type === 'container' ? Math.max(0, item.quantity - 1) : Math.max(0, item.quantity);
     const newItem: InventoryItem = {
       ...item,
       id: crypto.randomUUID(),
-      remainingVolume: item.unitVolume,
+      quantity: unopenedCount,
+      remainingVolume: item.type === 'container' && item.quantity > 0 ? item.unitVolume : 0,
       activeContainerVolume: item.unitVolume,
-      bottles: Array(item.quantity).fill(item.unitVolume),
+      bottles: Array(unopenedCount).fill(item.unitVolume),
     };
     setInventory(prev => {
       const next = [...prev, newItem];
@@ -518,7 +525,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
             remainingVolToDeduct -= tempBottles.splice(index, 1)[0];
           }
-          return remainingVolToDeduct <= 0 || tempBottles.length === 0;
+          return remainingVolToDeduct <= 0;
         })()
       : (remainingVolume + bottles.reduce((sum, vol) => sum + vol, 0)) >= volume;
 
@@ -611,6 +618,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
   const signOut = useCallback(async () => {
     if (isLocalMode) {
+      await apiPost('/api/v1/auth/logout', {}).catch(() => {});
       clearToken();
     } else {
       await supabase.auth.signOut();
@@ -641,7 +649,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLocalMode) {
       // Local mode: check auth state via HttpOnly cookie
-      apiGet<{ user: { id: string; email: string } }>('/api/auth/me')
+      apiGet<{ user: { id: string; email: string } }>('/api/v1/auth/me')
         .then(({ user: u }) => setUser(u as unknown as User))
         .catch(() => { setUser(null); });
       return;
@@ -665,7 +673,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Pull from cloud on mount or fresh login — single effect to avoid races
   useEffect(() => {
     if (!user || initialPullDone.current) return;
-    initialPullDone.current = true;
     pendingSyncRef.current = false;
     pullFromCloud();
   }, [user, pullFromCloud]);
