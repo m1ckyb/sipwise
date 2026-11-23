@@ -11,7 +11,7 @@
     "test:watch": "JWT_SECRET=test_jwt_secret_minimum_32_chars_long!! vitest"
   },
   "dependencies": {
-    "@hono/node-server": "^1.14.3",
+    "@hono/node-server": "^2.1.11",
     "bcryptjs": "^3.0.2",
     "hono": "^4.8.4",
     "jsonwebtoken": "^9.0.2",
