@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Circular Background for better PWA masking -->
+  <circle cx="256" cy="256" r="250" fill="#003B6F" />
+  
+  <!-- Beer Glass Outline/Body -->
+  <path d="M160 96 L352 96 L330 400 Q325 430 290 430 L222 430 Q187 430 182 400 Z" fill="#ffffff" />
+  
+  <!-- Beer Liquid -->
+  <path d="M172 160 L340 160 L322 390 Q318 415 290 415 L222 415 Q194 415 190 390 Z" fill="#FFD700" />
+  
+  <!-- Foam/Head -->
+  <path d="M160 96 Q160 70 190 70 Q210 50 240 70 Q270 50 300 70 Q352 70 352 96 L352 160 L160 160 Z" fill="#ffffff" />
+  
+  <!-- Glass Shine -->
+  <path d="M190 180 L200 380" stroke="rgba(255,255,255,0.4)" stroke-width="8" stroke-linecap="round" />
+</svg>
