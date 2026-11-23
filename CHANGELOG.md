@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.19] - 2026-11-24
+
+### Fixed
+- Added `--remote` flag to `supabase migration repair` and `supabase db push` in `.github/workflows/deploy.yml` and `.github/workflows/deploy-staging.yml` for Supabase CLI v3.3.0 compatibility.
+- Updated `sipwise-frontend` Trivy scan to `ignore-unfixed: true` and `severity: CRITICAL` so unfixable upstream Caddy Go-binary HIGH advisories do not block deploys while `sipwise-api` remains strict (`CRITICAL,HIGH`).
+
 ## [0.2.18] - 2026-11-24
 
 ### Fixed
