@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.18] - 2026-11-24
+
+### Fixed
+- Stripped unused `npm`, `corepack`, and `yarn` binaries/packages from the production `docker/Dockerfile.api` runtime image to eliminate 10 bundled npm CLI Trivy HIGH CVEs (`brace-expansion`, `ip-address`, `pacote`, `picomatch`, `sigstore`).
+- Guarded staging Supabase deployment steps in `.github/workflows/deploy-staging.yml` when `STAGING_SUPABASE_ACCESS_TOKEN` / `STAGING_SUPABASE_PROJECT_ID` secrets are not configured, and removed deprecated `--password` from `supabase link`.
+
 ## [0.2.17] - 2026-11-24
 
 ### Changed
