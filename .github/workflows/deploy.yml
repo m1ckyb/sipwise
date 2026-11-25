@@ -76,8 +76,8 @@ jobs:
 
       - name: Deploy Supabase API Edge Functions ☁️
         run: |
-          supabase functions deploy api --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --no-verify-jwt
-          supabase functions deploy check-alerts --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --no-verify-jwt
+          supabase functions deploy api --remote=${{ secrets.SUPABASE_PROJECT_ID }} --yes --no-verify-jwt
+          supabase functions deploy check-alerts --remote=${{ secrets.SUPABASE_PROJECT_ID }} --yes --no-verify-jwt
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 

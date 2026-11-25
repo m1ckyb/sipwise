@@ -93,8 +93,8 @@ jobs:
       - name: Deploy Supabase API Edge Functions ☁️
         if: steps.check-supabase.outputs.enabled == 'true'
         run: |
-          supabase functions deploy api --project-ref ${{ secrets.STAGING_SUPABASE_PROJECT_ID }} --no-verify-jwt
-          supabase functions deploy check-alerts --project-ref ${{ secrets.STAGING_SUPABASE_PROJECT_ID }} --no-verify-jwt
+          supabase functions deploy api --remote=${{ secrets.STAGING_SUPABASE_PROJECT_ID }} --yes --no-verify-jwt
+          supabase functions deploy check-alerts --remote=${{ secrets.STAGING_SUPABASE_PROJECT_ID }} --yes --no-verify-jwt
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN }}
 
