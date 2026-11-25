@@ -18,5 +18,6 @@
 
 ### Fixed
 - Updated `ScheduledTask` type import in `server/src/cron/checkAlerts.ts` for `node-cron` v4 built-in TypeScript definitions.
+- Fixed GitHub Actions syntax error in `.github/workflows/deploy-staging.yml` (`secrets` context is not allowed directly in `if:` expressions) by checking staging Supabase secrets via a `check-supabase` output step.
 
 ### Removed

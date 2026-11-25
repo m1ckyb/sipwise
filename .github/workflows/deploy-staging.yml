@@ -58,14 +58,27 @@ jobs:
           publish_dir: ./dist
           publish_branch: gh-pages-staging
 
+      - name: Check Staging Supabase Secrets 🔑
+        id: check-supabase
+        env:
+          HAS_TOKEN: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN != '' }}
+          HAS_PROJECT: ${{ secrets.STAGING_SUPABASE_PROJECT_ID != '' }}
+        run: |
+          if [ "$HAS_TOKEN" = "true" ] && [ "$HAS_PROJECT" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Staging Supabase secrets not configured; skipping Supabase deployment steps."
+          fi
+
       - name: Setup Supabase CLI ⚙️
-        if: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN != '' && secrets.STAGING_SUPABASE_PROJECT_ID != '' }}
+        if: steps.check-supabase.outputs.enabled == 'true'
         uses: supabase/setup-cli@v3
         with:
           version: latest
 
       - name: Deploy Database Migrations 🗄️
-        if: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN != '' && secrets.STAGING_SUPABASE_PROJECT_ID != '' }}
+        if: steps.check-supabase.outputs.enabled == 'true'
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_ID"
           supabase migration repair --remote --status applied 20260719182000 --password "$SUPABASE_DB_PASSWORD"
@@ -78,7 +91,7 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
 
       - name: Deploy Supabase API Edge Functions ☁️
-        if: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN != '' && secrets.STAGING_SUPABASE_PROJECT_ID != '' }}
+        if: steps.check-supabase.outputs.enabled == 'true'
         run: |
           supabase functions deploy api --project-ref ${{ secrets.STAGING_SUPABASE_PROJECT_ID }} --no-verify-jwt
           supabase functions deploy check-alerts --project-ref ${{ secrets.STAGING_SUPABASE_PROJECT_ID }} --no-verify-jwt
@@ -86,7 +99,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN }}
 
       - name: Verify Post-Deployment Health Check 🏥
-        if: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN != '' && secrets.STAGING_SUPABASE_PROJECT_ID != '' }}
+        if: steps.check-supabase.outputs.enabled == 'true'
         run: |
           echo "Running post-deployment API health check..."
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "https://${{ secrets.STAGING_SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/api" || true)
