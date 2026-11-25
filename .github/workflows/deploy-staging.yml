@@ -147,7 +147,7 @@ jobs:
 
       - name: Start stack and run health check
         run: |
-          docker compose up -d
+          docker compose up -d || { docker compose logs; docker compose down; exit 1; }
           for i in $(seq 1 15); do
             if curl -sfkL https://localhost/api/health | grep -q '"status":"ok"'; then
               echo "Health check passed"

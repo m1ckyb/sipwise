@@ -19,5 +19,6 @@
 ### Fixed
 - Updated `ScheduledTask` type import in `server/src/cron/checkAlerts.ts` for `node-cron` v4 built-in TypeScript definitions.
 - Fixed GitHub Actions syntax error in `.github/workflows/deploy-staging.yml` (`secrets` context is not allowed directly in `if:` expressions) by checking staging Supabase secrets via a `check-supabase` output step.
+- Fixed `web-push` v4 ESM import in `server/src/utils/vapid.ts` (`import * as webpush from 'web-push'`) to resolve container startup crash (`SyntaxError: The requested module 'web-push' does not provide an export named 'default'`).
 
 ### Removed
