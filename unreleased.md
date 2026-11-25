@@ -20,5 +20,6 @@
 - Updated `ScheduledTask` type import in `server/src/cron/checkAlerts.ts` for `node-cron` v4 built-in TypeScript definitions.
 - Fixed GitHub Actions syntax error in `.github/workflows/deploy-staging.yml` (`secrets` context is not allowed directly in `if:` expressions) by checking staging Supabase secrets via a `check-supabase` output step.
 - Fixed `web-push` v4 ESM import in `server/src/utils/vapid.ts` (`import * as webpush from 'web-push'`) to resolve container startup crash (`SyntaxError: The requested module 'web-push' does not provide an export named 'default'`).
+- Fixed `docker/Caddyfile` routing bug where `try_files {path} /index.html` ran before `reverse_proxy` and hijacked all `/api/*` requests; wrapped `/api/metrics`, `/api/*`, and SPA fallback in mutually exclusive `handle` blocks.
 
 ### Removed

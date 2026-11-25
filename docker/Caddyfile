@@ -8,28 +8,7 @@
 }
 
 {$DOMAIN:localhost} {
-    # Block public access to Prometheus metrics
-    @metrics path /api/metrics
-    respond @metrics 403
-
-    # Proxy all other API traffic to the backend
-    @api path /api/*
-    reverse_proxy @api api:3000 {
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-
-    # Cache immutable build assets
-    @assets path /assets/*
-    header @assets Cache-Control "public, immutable, max-age=31536000"
-
-    # Serve SPA — fall back to /index.html for unknown paths
-    root * /usr/share/caddy
-    try_files {path} /index.html
-    file_server
-
-    # Security headers for static/HTML responses
+    # Security headers for responses
     header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
@@ -38,5 +17,29 @@
         Permissions-Policy "geolocation=(), camera=(), microphone=()"
         Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none';"
         -Server
+    }
+
+    # Block public access to Prometheus metrics
+    handle /api/metrics {
+        respond 403
+    }
+
+    # Proxy all other API traffic to the backend
+    handle /api/* {
+        reverse_proxy api:3000 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Serve SPA — fall back to /index.html for non-API paths only
+    handle {
+        @assets path /assets/*
+        header @assets Cache-Control "public, immutable, max-age=31536000"
+
+        root * /usr/share/caddy
+        try_files {path} /index.html
+        file_server
     }
 }
