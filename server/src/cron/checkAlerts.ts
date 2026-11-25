@@ -1,11 +1,11 @@
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { db } from '../db.js';
 import { calculateBAC, type Drink, type Profile } from '../utils/bac.js';
 import { decryptData } from '../utils/crypto.js';
 import { vapidConfigured, webpush } from '../utils/vapid.js';
 import { logger } from '../utils/logger.js';
 
-const scheduledTasks: cron.ScheduledTask[] = [];
+const scheduledTasks: ScheduledTask[] = [];
 
 const CHECK_ALERTS_LOCK_ID = 8675309;
 
